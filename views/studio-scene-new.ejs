@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>LumenNyx – New Scene</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="home">
+
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/" class="brand-link">
+        <span class="brand-mark">
+          <img src="/img/lumennyx-mark.png" alt="LumenNyx Studios logo">
+        </span>
+        <span class="brand-text">LUMENNYX STUDIOS</span>
+      </a>
+
+      <nav class="main-nav">
+        <a href="/studio-panel">Studio Panel</a>
+        <a href="/studio-panel/models">Models</a>
+        <a href="/studio-panel/scenes" class="active">Scenes</a>
+        <a href="/2257">2257</a>
+        <form action="/logout" method="POST" style="display:inline;">
+          <button type="submit" class="btn secondary" style="padding:0.3rem 0.9rem;font-size:0.75rem;">
+            Logout
+          </button>
+        </form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-wrapper">
+    <section class="portal-section">
+      <h2>Create New Scene Record</h2>
+      <p class="portal-note">
+        This creates an internal studio record. You can upload a file for internal storage or provide an external reference
+        (Drive link / storage ID / filename).
+      </p>
+
+      <form action="/studio-panel/scenes/new" method="POST" class="portal-form" enctype="multipart/form-data">
+        <label>
+          Scene title *
+          <input type="text" name="title" required>
+        </label>
+
+        <label>
+          Shoot date (YYYY-MM-DD)
+          <input type="date" name="shoot_date">
+        </label>
+
+        <label>
+          Video reference (Drive link / filename / storage ID)
+          <input type="text" name="video_ref" placeholder="Optional if you upload a file below">
+        </label>
+
+        <label>
+          Upload video file (optional, internal storage)
+          <!-- IMPORTANT: must match app.js uploadSceneFile.single('scene_file') -->
+          <input type="file" name="scene_file" accept="video/*">
+        </label>
+
+        <label>
+          Internal notes / description
+          <textarea name="description" placeholder="Internal-only notes for record-keeping and planning"></textarea>
+        </label>
+
+        <fieldset>
+          <legend>Tag performers (models)</legend>
+
+          <% if (!models || models.length === 0) { %>
+            <p>No models available to tag yet.</p>
+          <% } else { %>
+            <p class="field-help">
+              Hold Ctrl (Windows) or Cmd (Mac) to select multiple performers.
+            </p>
+
+            <select name="model_ids" multiple size="6" style="width:100%;max-width:100%;">
+              <% models.forEach(function(m) { %>
+                <option value="<%= m.id %>">
+                  <%= m.username %> (<%= m.email || 'no email' %>) — <%= m.status %>
+                </option>
+              <% }) %>
+            </select>
+          <% } %>
+        </fieldset>
+
+        <button type="submit" class="btn primary">Save Scene Record</button>
+      </form>
+
+      <p class="field-help" style="margin-top:0.8rem;">
+        After saving, you can open the Scene Detail page and print the supporting model records you need for your
+        internal compliance folder.
+      </p>
+    </section>
+  </main>
+</body>
+</html>

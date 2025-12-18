@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>LumenNyx Studios – Studio Panel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="home">
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/" class="brand-link">
+        <span class="brand-mark">
+          <img src="/img/lumennyx-mark.png" alt="LumenNyx Studios logo">
+        </span>
+        <span class="brand-text">LUMENNYX STUDIOS</span>
+      </a>
+
+      <nav class="main-nav">
+        <a href="/studio-panel" class="active">Studio Panel</a>
+        <a href="/studio-panel/models">Models</a>
+        <a href="/studio-panel/scenes">Scenes</a>
+        <a href="/2257">2257</a>
+        <form action="/logout" method="POST" style="display:inline;">
+          <button type="submit" class="btn secondary" style="padding:0.3rem 0.9rem;font-size:0.75rem;">
+            Logout
+          </button>
+        </form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-wrapper">
+
+    <section class="portal-section">
+      <h2>Studio Panel Dashboard</h2>
+      <p class="portal-note">
+        Internal studio dashboard for managing model applications, compliance paperwork,
+        and scene records. This area is for <strong>admin / staff</strong> use only.
+      </p>
+
+      <div class="status-summary">
+        <div class="status-pill ok">
+          <span class="label">Total Models</span>
+          <span><%= (stats && typeof stats.totalModels !== 'undefined') ? stats.totalModels : 0 %></span>
+        </div>
+        <div class="status-pill pending">
+          <span class="label">Pending Review</span>
+          <span><%= (stats && typeof stats.pendingModels !== 'undefined') ? stats.pendingModels : 0 %></span>
+        </div>
+        <div class="status-pill ok">
+          <span class="label">Approved Models</span>
+          <span><%= (stats && typeof stats.approvedModels !== 'undefined') ? stats.approvedModels : 0 %></span>
+        </div>
+      </div>
+
+      <p class="field-help" style="margin-top:1rem;">
+        You are logged in with <strong><%= role %></strong> privileges.
+        Only admin/staff can access this panel. All information here is confidential
+        and should be treated as private legal/compliance data.
+      </p>
+
+      <div class="policies-grid" style="margin-top:1.2rem;">
+        <div class="policies-card">
+          <h4>Model Applications</h4>
+          <p>Review new sign-ups, verify ID and releases, and approve or reject accounts.</p>
+          <a href="/studio-panel/models" class="btn secondary" style="margin-top:0.5rem;">Manage Models</a>
+        </div>
+
+        <div class="policies-card">
+          <h4>Scenes & Tagging</h4>
+          <p>Create scene records, tag performers, and keep internal notes for record-keeping.</p>
+          <a href="/studio-panel/scenes" class="btn secondary" style="margin-top:0.5rem;">View Scenes</a>
+        </div>
+
+        <div class="policies-card">
+          <h4>Compliance & 2257</h4>
+          <p>Use model and scene records to generate printable packets for your accountant/lawyer.</p>
+          <a href="/2257" class="btn secondary" style="margin-top:0.5rem;">2257 / Legal Info</a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</body>
+</html>

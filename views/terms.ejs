@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Terms of Service – LumenNyx Studios</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+
+<body class="home">
+  <%
+    const EMAILS = (typeof CONTACT_EMAILS !== 'undefined' && CONTACT_EMAILS) ? CONTACT_EMAILS : {};
+    const emailModels = EMAILS.models || 'models@lumennyxstudios.com';
+    const emailSupport = EMAILS.support || 'support@lumennyxstudios.com';
+    const emailBilling = EMAILS.billing || 'billing@lumennyxstudios.com';
+    const emailLegal = EMAILS.legal || 'legal@lumennyxstudios.com';
+    const email2257 = EMAILS['2257'] || EMAILS.compliance2257 || '2257@lumennyxstudios.com';
+    const emailRelease = EMAILS.release || 'release@lumennyxstudios.com';
+    const emailContact = EMAILS.contact || 'contact@lumennyxstudios.com';
+  %>
+
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/" class="brand-link">
+        <span class="brand-mark">
+          <img src="/img/lumennyx-mark.png" alt="LumenNyx Studios logo">
+        </span>
+        <span class="brand-text">LUMENNYX STUDIOS</span>
+      </a>
+
+      <nav class="main-nav">
+        <a href="/">Home</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms" class="active">Terms</a>
+        <a href="/2257">2257 Notice</a>
+        <a href="/login">Login</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-wrapper legal-page">
+    <section class="hero">
+      <div class="hero-logo-bg"></div>
+      <h2>Terms of Service</h2>
+      <p class="hero-note">
+        Effective Date: <%= new Date().getFullYear() %><br>
+        LumenNyx Studios – Wallkill, NY 12589
+      </p>
+    </section>
+
+    <section class="legal-section">
+      <h2>1. Overview</h2>
+      <p>
+        These Terms of Service (“Terms”) govern your use of the private model and staff portal
+        operated by LumenNyx Studios (“the studio,” “we,” “our”). By accessing or using this portal,
+        you agree to these Terms.
+      </p>
+      <p>
+        This portal is a private tool used for administrative, compliance, scheduling, and safety purposes.
+        It is not a public video-hosting website.
+      </p>
+    </section>
+
+    <section class="legal-section">
+      <h2>2. Eligibility &amp; Age Requirements</h2>
+      <p>
+        You must be at least 18 years old to hold an account on this portal or to participate
+        in any adult content production with LumenNyx Studios. You must provide accurate and
+        truthful identity documents when required.
+      </p>
+    </section>
+
+    <section class="legal-section">
+      <h2>3. Account Responsibilities</h2>
+      <p>You are responsible for keeping your account credentials private and secure. You agree:</p>
+      <ul>
+        <li>Not to share your login credentials with anyone.</li>
+        <li>Not to attempt to access another person’s account.</li>
+        <li>To notify the studio if you believe your account has been compromised.</li>
+      </ul>
+      <p>The studio reserves the right to suspend or terminate accounts for security reasons or misuse.</p>
+    </section>
+
+    <section class="legal-section">
+      <h2>4. Information You Provide</h2>
+      <p>
+        When using this portal, you agree that all information submitted is accurate to the best of your knowledge.
+        This includes identity details, compliance documents, consent/safety preferences, and any other information
+        used for scheduling and record-keeping.
+      </p>
+      <p>Providing false information may affect eligibility to participate in shoots.</p>
+    </section>
+
+    <section class="legal-section">
+      <h2>5. Use of Studio Materials</h2>
+      <p>
+        Any text, graphics, branding, images, or documents found in this portal are the property of LumenNyx Studios
+        and may not be reproduced, copied, or redistributed without written permission.
+      </p>
+    </section>
+
+    <section class="legal-section">
+      <h2>6. Consent &amp; On-Set Conduct</h2>
+      <p>All adult content production with LumenNyx Studios is strictly voluntary. You may:</p>
+      <ul>
+        <li>Refuse any scene or request for any reason.</li>
+        <li>Stop a scene at any moment.</li>
+        <li>Request breaks, water, or space to reset.</li>
+      </ul>
+      <p>
+        You agree to follow all safety, boundary, and conduct rules outlined in the portal,
+        including the studio’s policies on sobriety, safe words, and respectful behavior.
+      </p>
+    </section>
+
+    <section class="legal-section">
+      <h2>7. Payments &amp; Contractor Status</h2>
+      <p>
+        Unless otherwise stated in writing, work with LumenNyx Studios is performed as an independent contractor,
+        not an employee. Payment amounts and terms will be described separately before each project or shoot.
+      </p>
+      <p>You are responsible for your own taxes, reporting, and financial obligations.</p>
+    </section>
+
+    <section class="legal-section">
+      <h2>8. Content Ownership &amp; Releases</h2>
+      <p>
+        Any recording, photos, or footage created by the studio remain the property of LumenNyx Studios unless otherwise agreed.
+        Your Master Model Release (and any scene-specific releases) governs the rights granted to the studio regarding distribution and use.
+      </p>
+    </section>
+
+    <section class="legal-section">
+      <h2>9. Takedown Requests</h2>
+      <p>
+        The studio may, at its discretion, honor requests to limit or remove content from its own platforms.
+        However, once adult content is published online, complete removal from third-party platforms may not be possible.
+      </p>
+      <p>
+        Release/takedown-related requests should be directed to
+        <a href="mailto:<%= emailRelease %>"><strong><%= emailRelease %></strong></a>.
+      </p>
+    </section>
+
+    <section class="legal-section">
+      <h2>10. Termination</h2>
+      <p>
+        You may request account closure at any time. The studio may suspend or deactivate accounts for security, misuse,
+        or policy violations. Required compliance records and releases may still be retained as required by law.
+      </p>
+    </section>
+
+    <section class="legal-section">
+      <h2>11. Changes to These Terms</h2>
+      <p>
+        These Terms may be updated occasionally. The effective date at the top of the page will reflect the latest version.
+        Continued use of the portal constitutes acceptance of updated Terms.
+      </p>
+    </section>
+
+    <section class="legal-section">
+      <h2>12. Contact</h2>
+      <p>
+        <strong>Model onboarding:</strong> <a href="mailto:<%= emailModels %>"><%= emailModels %></a><br>
+        <strong>Support:</strong> <a href="mailto:<%= emailSupport %>"><%= emailSupport %></a><br>
+        <strong>Billing:</strong> <a href="mailto:<%= emailBilling %>"><%= emailBilling %></a><br>
+        <strong>Legal notices:</strong> <a href="mailto:<%= emailLegal %>"><%= emailLegal %></a><br>
+        <strong>2257 compliance:</strong> <a href="mailto:<%= email2257 %>"><%= email2257 %></a><br>
+        <strong>General:</strong> <a href="mailto:<%= emailContact %>"><%= emailContact %></a>
+      </p>
+    </section>
+
+    <section class="legal-section">
+      <p class="field-help">
+        These Terms are provided for general portal governance and do not constitute legal advice. Consult an attorney for legal guidance.
+      </p>
+    </section>
+  </main>
+</body>
+</html>

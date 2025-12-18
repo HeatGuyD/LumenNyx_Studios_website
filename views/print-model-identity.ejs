@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <%
+    const safeModelUser = (typeof modelUser !== 'undefined') ? modelUser : null;
+    const safeUser = (typeof user !== 'undefined') ? user : null;
+    const u = safeModelUser || safeUser || {};
+    const uname = u && u.username ? u.username : 'Model';
+  %>
+  <title>Identity Summary – <%= uname %></title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    @media print {
+      .no-print { display: none !important; }
+      body { background: #fff; color: #000; }
+    }
+    .print-page {
+      max-width: 900px;
+      margin: 1.5rem auto;
+      padding: 1.5rem;
+      background: #0b0b12;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .print-page h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+    .print-page h2 { font-size: 1.1rem; margin-top: 1.1rem; margin-bottom: 0.35rem; }
+    .print-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit,minmax(260px,1fr));
+      gap: 0.75rem 1.2rem;
+      font-size: 0.9rem;
+    }
+    .print-field-label { font-weight: 600; color: #ccc; }
+    .print-pill-ok {
+      display: inline-block;
+      padding: 0.1rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      background: rgba(0, 200, 120, 0.15);
+      border: 1px solid rgba(0, 200, 120, 0.6);
+      color: #c5ffe0;
+    }
+    .print-pill-missing {
+      display: inline-block;
+      padding: 0.1rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      background: rgba(220, 65, 65, 0.15);
+      border: 1px solid rgba(220, 65, 65, 0.8);
+      color: #ffd0d0;
+    }
+    .print-mono {
+      font-family: ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.8rem;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+  <div class="print-page">
+    <div class="no-print" style="text-align:right; margin-bottom:0.5rem;">
+      <button class="btn secondary" onclick="window.print()">Print</button>
+    </div>
+
+    <h1>LumenNyx Studios – Model Identity Summary</h1>
+    <p class="print-mono">
+      Username: <%= (u && u.username) ? u.username : '—' %><br/>
+      Generated: <%= (typeof generatedAt !== 'undefined' && generatedAt) ? generatedAt : new Date().toISOString() %>
+    </p>
+
+    <h2>1. Account & Basic Identity</h2>
+    <div class="print-grid">
+      <div>
+        <span class="print-field-label">Studio Username:</span><br />
+        <span><%= (u && u.username) ? u.username : '—' %></span>
+      </div>
+      <div>
+        <span class="print-field-label">Legal Name:</span><br />
+        <span><%= (typeof profile !== 'undefined' && profile && profile.legal_name) ? profile.legal_name : "—" %></span>
+      </div>
+      <div>
+        <span class="print-field-label">Email:</span><br />
+        <span>
+          <%= (u && u.email) ? u.email : ((typeof profile !== 'undefined' && profile && profile.email) ? profile.email : "—") %>
+        </span>
+      </div>
+      <div>
+        <span class="print-field-label">Aliases / Stage Names:</span><br />
+        <span><%= (typeof profile !== 'undefined' && profile && profile.aliases) ? profile.aliases : "—" %></span>
+      </div>
+      <div>
+        <span class="print-field-label">Preferred Name:</span><br />
+        <span><%= (typeof profile !== 'undefined' && profile && profile.preferred_name) ? profile.preferred_name : "—" %></span>
+      </div>
+      <div>
+        <span class="print-field-label">Date of Birth:</span><br />
+        <span><%= (typeof profile !== 'undefined' && profile && profile.date_of_birth) ? profile.date_of_birth : "—" %></span>
+      </div>
+      <div>
+        <span class="print-field-label">Location:</span><br />
+        <span>
+          <%= (typeof profile !== 'undefined' && profile && profile.state) ? (profile.state + ", ") : "" %>
+          <%= (typeof profile !== 'undefined' && profile && profile.country) ? profile.country : "" %>
+          <%= (!(typeof profile !== 'undefined' && profile) || ((profile && !profile.state && !profile.country))) ? "—" : "" %>
+        </span>
+      </div>
+      <div>
+        <span class="print-field-label">Phone:</span><br />
+        <span><%= (typeof profile !== 'undefined' && profile && profile.phone) ? profile.phone : "—" %></span>
+      </div>
+      <div>
+        <span class="print-field-label">Emergency Contact:</span><br />
+        <span>
+          <%= (typeof profile !== 'undefined' && profile && profile.emergency_name) ? profile.emergency_name : "—" %>
+          <%= (typeof profile !== 'undefined' && profile && profile.emergency_phone) ? (" (" + profile.emergency_phone + ")") : "" %>
+        </span>
+      </div>
+    </div>
+
+    <h2>2. Master Model Release</h2>
+    <%
+      const r = (typeof release !== 'undefined' && release) ? release : ((typeof masterRelease !== 'undefined' && masterRelease) ? masterRelease : null);
+    %>
+    <% if (r) { %>
+      <p>Status: <span class="print-pill-ok">SIGNED</span></p>
+      <p>
+        Signed Name: <strong><%= r.signed_name %></strong><br />
+        Signed At: <span><%= r.signed_at %></span><br />
+        IP Address: <span class="print-mono"><%= r.ip_address || "—" %></span><br />
+        User Agent: <span class="print-mono"><%= r.user_agent || "—" %></span>
+      </p>
+    <% } else { %>
+      <p>Status: <span class="print-pill-missing">NO ONLINE MASTER RELEASE ON FILE</span></p>
+    <% } %>
+
+    <h2>3. Documents (on portal)</h2>
+    <% if (typeof documents !== 'undefined' && documents && documents.length) { %>
+      <p>Status: <span class="print-pill-ok"><%= documents.length %> file(s)</span></p>
+      <div class="print-mono">
+        <% documents.forEach((d) => { %>
+          • <%= d.doc_type %> — <%= d.filename %> — <%= d.uploaded_at || '' %><br/>
+        <% }) %>
+      </div>
+    <% } else { %>
+      <p>Status: <span class="print-pill-missing">NO DOCUMENTS UPLOADED</span></p>
+    <% } %>
+
+    <h2>4. Consent, Safety & Policy Notes</h2>
+    <% if (typeof policies !== 'undefined' && policies) { %>
+      <div class="print-grid">
+        <div>
+          <span class="print-field-label">Testing Routine Declared:</span><br />
+          <% if (policies.sti_testing_routine) { %>
+            <span class="print-pill-ok">YES</span>
+          <% } else { %>
+            <span class="print-pill-missing">NOT CHECKED</span>
+          <% } %>
+        </div>
+
+        <div>
+          <span class="print-field-label">Hard Limits:</span><br />
+          <span><%= policies.consent_hard_limits || "—" %></span>
+        </div>
+
+        <div>
+          <span class="print-field-label">Soft Limits / Notes:</span><br />
+          <span><%= policies.consent_soft_limits || "—" %></span>
+        </div>
+
+        <div>
+          <span class="print-field-label">No Substances:</span><br />
+          <% if (policies.policy_no_substances) { %>
+            <span class="print-pill-ok">YES</span>
+          <% } else { %>
+            <span class="print-pill-missing">NOT CHECKED</span>
+          <% } %>
+        </div>
+
+        <div>
+          <span class="print-field-label">Safeword Policy:</span><br />
+          <% if (policies.policy_safe_word) { %>
+            <span class="print-pill-ok">YES</span>
+          <% } else { %>
+            <span class="print-pill-missing">NOT CHECKED</span>
+          <% } %>
+        </div>
+
+        <div>
+          <span class="print-field-label">Contractor Acknowledgement:</span><br />
+          <% if (policies.contractor_acknowledge) { %>
+            <span class="print-pill-ok">Acknowledged</span>
+            <span><%= policies.contractor_signature ? (" — " + policies.contractor_signature) : "" %></span>
+          <% } else { %>
+            <span class="print-pill-missing">NOT CHECKED</span>
+          <% } %>
+        </div>
+      </div>
+
+      <h2>5. Internal Removal / Takedown Notes</h2>
+      <p><%= policies.policy_removal_notes ? policies.policy_removal_notes : "— No additional notes recorded." %></p>
+    <% } else { %>
+      <p><span class="print-pill-missing">NO ONLINE CONSENT / POLICY CHECKLIST ON FILE</span></p>
+    <% } %>
+  </div>
+</body>
+</html>

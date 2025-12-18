@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Consent & Safety Profile – <%= user.username %></title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 20px; line-height: 1.4; }
+    h1, h2 { margin-bottom: 0.25rem; }
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.1rem; margin-top: 1.2rem; }
+    .meta { font-size: 0.9rem; color: #555; margin-bottom: 1rem; }
+    ul { margin-top: 0.4rem; }
+    li { margin-bottom: 0.25rem; }
+    .note { margin-top: 1.2rem; font-size: 0.85rem; color: #555; }
+    @media print { button { display: none; } }
+  </style>
+</head>
+<body>
+  <button onclick="window.print()">Print</button>
+
+  <h1>LumenNyx Studios – Consent & Safety Profile</h1>
+  <div class="meta">
+    Username: <strong><%= user.username %></strong><br>
+    Generated: <%= new Date().toLocaleString() %>
+  </div>
+
+  <% if (!policies) { %>
+    <p>No consent / safety profile has been saved for this model.</p>
+  <% } else { %>
+    <h2>General Comfort & Consent</h2>
+    <ul>
+      <li>Kissing: <%= policies.consent_allows_kissing ? 'Generally OK' : 'Not checked' %></li>
+      <li>Nudity: <%= policies.consent_allows_nudity ? 'OK' : 'Not checked' %></li>
+      <li>Rough play: <%= policies.consent_allows_rough ? 'Open with limits' : 'Not checked' %></li>
+      <li>Choking fantasy: <%= policies.consent_allows_choking ? 'Open with limits' : 'Not checked' %></li>
+    </ul>
+
+    <h2>Hard Limits (Never OK)</h2>
+    <p><%= policies.consent_hard_limits || '(none listed)' %></p>
+
+    <h2>Soft Limits (“Ask First”)</h2>
+    <p><%= policies.consent_soft_limits || '(none listed)' %></p>
+
+    <h2>On-Set Safety Rules</h2>
+    <ul>
+      <li>No illegal drugs / no performing while impaired:
+        <%= policies.policy_no_substances ? 'Acknowledged' : 'Not checked' %>
+      </li>
+      <li>Safe word stops all activity:
+        <%= policies.policy_safe_word ? 'Acknowledged' : 'Not checked' %>
+      </li>
+      <li>Breaks allowed:
+        <%= policies.policy_breaks ? 'Acknowledged' : 'Not checked' %>
+      </li>
+      <li>Reporting unsafe behavior:
+        <%= policies.policy_reporting ? 'Acknowledged' : 'Not checked' %>
+      </li>
+    </ul>
+
+    <h2>Content Removal Expectations</h2>
+    <ul>
+      <li>Understands full internet removal is not guaranteed:
+        <%= policies.policy_understand_no_guaranteed_removal ? 'Yes' : 'Not checked' %>
+      </li>
+      <li>May request internal takedowns in good faith:
+        <%= policies.policy_internal_requests ? 'Yes' : 'Not checked' %>
+      </li>
+    </ul>
+    <p><strong>Removal notes:</strong> <%= policies.policy_removal_notes || '(none)' %></p>
+
+    <h2>Contractor Acknowledgement</h2>
+    <ul>
+      <li>Independent contractor, not employee:
+        <%= policies.contractor_acknowledge ? 'Yes' : 'Not checked' %>
+      </li>
+      <li>Digital signature / typed name:
+        <%= policies.contractor_signature || '(none)' %>
+      </li>
+    </ul>
+
+    <p class="note">
+      This consent profile is intended as a high-level reference for planning and safety.
+      Scene-specific releases should still be used to document acts and partners for each shoot.
+    </p>
+  <% } %>
+</body>
+</html>

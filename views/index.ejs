@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>LumenNyx Studios – Internal Video Library</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <h1><a href="/">LumenNyx Studios</a></h1>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/library">Internal Video Library</a>
+      <% if (isAuthenticated) { %>
+        <a href="/upload">Upload</a>
+        <a href="/admin">Admin</a>
+        <span>Logged in as <%= username %></span>
+        <a href="/logout">Logout</a>
+      <% } else { %>
+        <a href="/login">Staff Login</a>
+      <% } %>
+    </nav>
+  </header>
+
+  <main class="library">
+    <h2>Internal Video Library</h2>
+
+    <!-- Search / filter form -->
+    <form class="search-bar" method="GET" action="/library">
+      <input
+        type="text"
+        name="q"
+        placeholder="Search videos..."
+        value="<%= (typeof q !== 'undefined' && q) ? q : '' %>">
+
+      <select name="category">
+        <option value="">All categories</option>
+        <% if (typeof categories !== 'undefined' && categories && categories.length > 0) { %>
+          <% categories.forEach(function (cat) { %>
+            <option
+              value="<%= cat %>"
+              <%= (typeof currentCategory !== 'undefined' && currentCategory === cat) ? 'selected' : '' %>>
+              <%= cat %>
+            </option>
+          <% }); %>
+        <% } %>
+      </select>
+
+      <button type="submit">Search</button>
+    </form>
+
+    <!-- Video list -->
+    <% if (!videos || videos.length === 0) { %>
+      <p>No videos uploaded yet.</p>
+    <% } else { %>
+      <div class="video-grid">
+        <% videos.forEach(function (v) { %>
+          <div class="video-card">
+            <a href="/video/<%= v.id %>">
+              <% if (v.thumbnail_filename) { %>
+                <img
+                  class="thumb"
+                  src="/thumbnails/<%= v.thumbnail_filename %>"
+                  alt="Thumbnail for <%= v.title %>">
+              <% } else { %>
+                <div class="thumb thumb-placeholder">No thumbnail</div>
+              <% } %>
+            </a>
+
+            <h3><a href="/video/<%= v.id %>"><%= v.title %></a></h3>
+
+            <% if (v.category) { %>
+              <p class="category-tag"><%= v.category %></p>
+            <% } %>
+
+            <% if (v.description) { %>
+              <p class="description"><%= v.description %></p>
+            <% } %>
+
+            <small>Uploaded: <%= v.created_at %></small>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </main>
+</body>
+</html>

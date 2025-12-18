@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Staff Login – LumenNyx Studios</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+ <header class="site-header">
+  <div class="header-inner">
+    <div class="brand">
+      <a href="/" class="brand-link">
+        <img src="/images/lumennyx-logo.png" alt="LumenNyx Studios Logo" class="brand-logo">
+        <span class="brand-text">LumenNyx Studios</span>
+      </a>
+    </div>
+
+    <nav class="main-nav">
+      <a href="/" class="nav-link">Home</a>
+
+      <% if (!isAuthenticated) { %>
+        <a href="/register" class="nav-link">Create Account</a>
+        <a href="/login" class="nav-link">Model Login</a>
+        <a href="/staff-login" class="nav-link">Staff Login</a>
+      <% } else { %>
+        <% if (role === 'model') { %>
+          <a href="/model/profile" class="nav-link">My Profile</a>
+          <a href="/my-scenes" class="nav-link">My Scenes</a>
+        <% } else if (role === 'admin' || role === 'staff') { %>
+          <a href="/studio-panel" class="nav-link">Studio Panel</a>
+          <% if (role === 'admin') { %>
+            <a href="/upload" class="nav-link">Upload Scene</a>
+          <% } %>
+        <% } %>
+        <a href="/logout" class="nav-link">Logout</a>
+      <% } %>
+
+      <a href="/2257" class="nav-link">2257 / Legal</a>
+    </nav>
+  </div>
+</header>
+
+
+  <main class="page-container auth-page">
+    <section class="panel">
+      <h1>Staff &amp; Admin Login</h1>
+      <p class="panel-intro">
+        This area is for studio staff and admin only. Models should use the
+        <a href="/login">Model Login</a> page instead.
+      </p>
+
+      <% if (message) { %>
+        <div class="flash flash-success"><%= message %></div>
+      <% } %>
+
+      <% if (error) { %>
+        <div class="flash flash-error"><%= error %></div>
+      <% } %>
+
+      <form method="POST" action="/staff-login" class="auth-form">
+        <label>
+          Username
+          <input type="text" name="username" required>
+        </label>
+
+        <label>
+          Password
+          <input type="password" name="password" required>
+        </label>
+
+        <button type="submit" class="btn primary">Log In to Studio Panel</button>
+      </form>
+
+      <p class="auth-switch">
+        Models should not log in here.
+        <a href="/login">Go to model login</a>
+      </p>
+    </section>
+  </main>
+</body>
+</html>

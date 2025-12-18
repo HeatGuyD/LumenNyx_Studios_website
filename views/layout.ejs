@@ -1,0 +1,35 @@
+<header class="site-header">
+  <div class="site-header-inner">
+    <!-- Brand: small logo + text -->
+    <a href="/" class="brand-link">
+      <span class="brand-mark">
+        <img src="/img/lumennyx-mark.png" alt="LumenNyx Studios logo">
+      </span>
+      <span class="brand-text">LUMENNYX STUDIOS</span>
+    </a>
+
+    <!-- Main nav -->
+    <nav class="main-nav">
+      <a href="/" class="<%= (activePage === 'home') ? 'active' : '' %>">Home</a>
+
+      <% if (!isAuthenticated) { %>
+        <a href="/register" class="<%= (activePage === 'register') ? 'active' : '' %>">Create Account</a>
+        <a href="/login" class="<%= (activePage === 'login') ? 'active' : '' %>">Model Login</a>
+        <a href="/staff-login" class="<%= (activePage === 'staff-login') ? 'active' : '' %>">Staff Login</a>
+      <% } else { %>
+        <% if (role === 'model') { %>
+          <a href="/model/profile" class="<%= (activePage === 'model-profile') ? 'active' : '' %>">My Profile</a>
+          <a href="/my-scenes" class="<%= (activePage === 'my-scenes') ? 'active' : '' %>">My Scenes</a>
+        <% } else if (role === 'admin' || role === 'staff') { %>
+          <a href="/studio-panel" class="<%= (activePage === 'studio-panel') ? 'active' : '' %>">Studio Panel</a>
+          <% if (role === 'admin') { %>
+            <a href="/upload" class="<%= (activePage === 'upload') ? 'active' : '' %>">Upload Scene</a>
+          <% } %>
+        <% } %>
+        <a href="/logout">Logout</a>
+      <% } %>
+
+      <a href="/2257" class="<%= (activePage === '2257') ? 'active' : '' %>">2257 / Legal</a>
+    </nav>
+  </div>
+</header>

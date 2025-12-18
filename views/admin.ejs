@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Studio Panel – LumenNyx Studios</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+ <header class="site-header">
+  <div class="brand">
+    <a href="/" class="brand-link">
+      <img
+        src="/img/lumennyx-mark.png"
+        alt="LumenNyx Studios logo"
+        class="brand-logo"
+      />
+      <span class="brand-text">LUMENNYX STUDIOS</span>
+    </a>
+  </div>
+
+  <nav class="main-nav">
+    <a href="/" class="nav-link">Home</a>
+
+    <% if (!isAuthenticated) { %>
+      <a href="/register" class="nav-link">Create Account</a>
+      <a href="/login" class="nav-link">Login</a>
+      <a href="/staff-login" class="nav-link">Staff Login</a>
+    <% } else { %>
+      <% if (role === 'model') { %>
+        <a href="/model/profile" class="nav-link">My Profile</a>
+        <a href="/my-scenes" class="nav-link">My Scenes</a>
+      <% } else if (role === 'admin' || role === 'staff') { %>
+        <a href="/studio-panel" class="nav-link">Studio Panel</a>
+        <% if (role === 'admin') { %>
+          <a href="/upload" class="nav-link">Upload Scene</a>
+        <% } %>
+      <% } %>
+      <a href="/logout" class="nav-link">Logout</a>
+    <% } %>
+
+    <a href="/2257" class="nav-link">2257 / Legal</a>
+  </nav>
+</header>
+
+
+  <main class="admin-page">
+    <section class="portal-header">
+      <h2>Studio Panel</h2>
+      <a href="/studio-panel/models" class="button">Manage Model Accounts</a>
+
+      <p>
+        Logged in as:
+        <strong><%= username %></strong>
+        (<%= role %>)
+      </p>
+
+      <% if (message) { %>
+        <div class="alert success"><%= message %></div>
+      <% } %>
+
+      <% if (error) { %>
+        <div class="alert error"><%= error %></div>
+      <% } %>
+    </section>
+
+    <% 
+      const videoList = (typeof videos !== 'undefined' && Array.isArray(videos)) ? videos : [];
+      const modelList = (typeof models !== 'undefined' && Array.isArray(models)) ? models : [];
+    %>
+
+    <!-- 1. Video Library Overview -->
+    <section class="portal-section">
+      <h3>Scenes in Library</h3>
+
+      <% if (videoList.length === 0) { %>
+        <p>No scenes have been uploaded yet.</p>
+      <% } else { %>
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Title</th>
+              <th>Performer</th>
+              <th>Category</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% videoList.forEach(function(v) { %>
+              <tr>
+                <td><%= v.id %></td>
+                <td><%= v.title %></td>
+                <td><%= v.performer_name || '-' %></td>
+                <td><%= v.category || '-' %></td>
+                <td><%= v.created_at %></td>
+                <td>
+                  <a href="/video/<%= v.id %>" class="btn small">View</a>
+
+                  <% if (role === 'admin') { %>
+                    <form method="POST"
+                          action="/studio-panel/delete/<%= v.id %>"
+                          style="display:inline"
+                          onsubmit="return confirm('Delete this scene? This cannot be undone.');">
+                      <button type="submit" class="btn small danger">Delete</button>
+                    </form>
+                  <% } %>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      <% } %>
+
+      <% if (role === 'admin') { %>
+        <p class="field-help">
+          As admin you can also <a href="/upload">upload new scenes</a>.
+        </p>
+      <% } %>
+    </section>
+
+    <!-- 2. Model Accounts -->
+    <section class="portal-section">
+      <h3>Registered Models</h3>
+
+      <% if (modelList.length === 0) { %>
+        <p>No models registered yet.</p>
+      <% } else { %>
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Username</th>
+              <th>Legal Name</th>
+              <th>DOB</th>
+              <th>Email</th>
+              <th>W-9</th>
+              <th>Status</th>
+              <% if (role === 'admin') { %>
+                <th>Actions</th>
+              <% } %>
+            </tr>
+          </thead>
+          <tbody>
+            <% modelList.forEach(function(m) { %>
+              <tr>
+                <td><%= m.id %></td>
+                <td><%= m.username %></td>
+                <td><%= m.legal_name || '-' %></td>
+                <td><%= m.date_of_birth || '-' %></td>
+                <td><%= m.email || '-' %></td>
+                <td><%= m.tax_form_uploaded ? 'Yes' : 'No' %></td>
+                <td>
+                  <% if (m.is_verified) { %>
+                    <span class="status-pill status-ok">Approved</span>
+                  <% } else { %>
+                    <span class="status-pill status-pending">Pending</span>
+                  <% } %>
+                </td>
+
+                <% if (role === 'admin') { %>
+                  <td>
+                    <% if (!m.is_verified) { %>
+                      <form method="POST"
+                            action="/studio-panel/approve-model/<%= m.id %>"
+                            style="display:inline">
+                        <button type="submit" class="btn small">Approve</button>
+                      </form>
+                    <% } else { %>
+                      <form method="POST"
+                            action="/studio-panel/models/<%= m.id %>/unapprove"
+                            style="display:inline">
+                        <button type="submit" class="btn small">Unapprove</button>
+                      </form>
+                    <% } %>
+
+                    <form method="POST"
+                          action="/studio-panel/reject-model/<%= m.id %>"
+                          style="display:inline"
+                          onsubmit="return confirm('Permanently remove this model account and related records?');">
+                      <button type="submit" class="btn small danger">Delete</button>
+                    </form>
+                  </td>
+                <% } %>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      <% } %>
+    </section>
+
+    <!-- 3. Staff creation (admin only) -->
+    <% if (role === 'admin') { %>
+      <section class="portal-section">
+        <h3>Create Staff Account</h3>
+        <form method="POST" action="/studio-panel/create-staff" class="portal-form">
+          <label>
+            Staff Username
+            <input type="text" name="staff_username" required>
+          </label>
+
+          <label>
+            Staff Email
+            <input type="email" name="staff_email" required>
+          </label>
+
+          <label>
+            Temporary Password
+            <input type="password" name="staff_password" required>
+          </label>
+
+          <button type="submit" class="btn primary">Create Staff Account</button>
+        </form>
+      </section>
+    <% } %>
+  </main>
+</body>
+</html>

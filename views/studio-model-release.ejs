@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Master Model Release – <%= (profile && profile.legal_name) ? profile.legal_name : (user && user.username ? user.username : 'Model') %></title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    body { background:#111; color:#fafafa; }
+    .print-container { max-width: 860px; margin: 2rem auto; background:#181818; padding:2rem; border-radius: 14px; }
+    h1, h2 { text-align:center; margin: 0.25rem 0; }
+    .legal-block { margin:1rem 0; line-height:1.55; font-size:0.95rem; color:#e8e8f2; }
+    .signature-box { margin-top:2rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.12); }
+    .meta-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 1rem; }
+    .meta-grid p { margin: 0.25rem 0; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 0.85rem; }
+    @media print {
+      body { background:#fff; color:#000; }
+      .print-container { background:#fff; color:#000; box-shadow:none; border-radius: 0; }
+      .no-print { display:none; }
+      .legal-block { color:#000; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-container">
+    <div class="no-print" style="text-align:right;">
+      <button class="btn secondary" onclick="window.print()">Print / Save as PDF</button>
+    </div>
+
+    <h1>LumenNyx Studios</h1>
+    <h2>Master Model Release &amp; Grant of Rights</h2>
+
+    <div class="meta-grid">
+      <div>
+        <p><strong>Performer / Model:</strong>
+          <%= (profile && profile.legal_name) ? profile.legal_name : (user && user.username ? user.username : '—') %>
+        </p>
+        <p><strong>Aliases / Stage Names:</strong> <%= (profile && profile.aliases) ? profile.aliases : '—' %></p>
+        <p><strong>Date of Birth:</strong> <%= (profile && profile.date_of_birth) ? profile.date_of_birth : '—' %></p>
+      </div>
+      <div>
+        <% if (typeof CONTACT_EMAILS !== 'undefined' && CONTACT_EMAILS) { %>
+          <p><strong>Studio Contact (Releases):</strong> <%= CONTACT_EMAILS.release %></p>
+          <p><strong>2257 / Records:</strong> <%= CONTACT_EMAILS['2257'] || CONTACT_EMAILS.compliance2257 || '—' %></p>
+          <p><strong>Legal Notices:</strong> <%= CONTACT_EMAILS.legal %></p>
+        <% } else { %>
+          <p><strong>Studio Contact (Releases):</strong> release@lumennyxstudios.com</p>
+          <p><strong>2257 / Records:</strong> 2257@lumennyxstudios.com</p>
+          <p><strong>Legal Notices:</strong> legal@lumennyxstudios.com</p>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="legal-block">
+      This document is a general grant of rights by the performer to LumenNyx Studios (the “Producer”).
+      It is intended for adult-oriented photo and video content produced in the United States with
+      performers who are 18 years of age or older.
+    </div>
+
+    <div class="legal-block">
+      1. <strong>Age &amp; Identity.</strong> The performer affirms they are at least eighteen (18) years of age,
+      that identifying information and documentation provided to Producer is true and correct, and that valid
+      government-issued photo identification has been presented for record-keeping in accordance with U.S. federal
+      record rules (including 18 U.S.C. § 2257 and related regulations, where applicable).
+    </div>
+
+    <div class="legal-block">
+      2. <strong>Grant of Rights.</strong> The performer grants to Producer a perpetual, worldwide, transferable license
+      to record, reproduce, edit, adapt, publicly display, distribute, advertise, and otherwise exploit photo or video
+      content created during shoots with Producer, in any media now known or later developed, subject to any written restrictions
+      agreed separately in individual booking or scene agreements.
+    </div>
+
+    <div class="legal-block">
+      3. <strong>Use of Name &amp; Likeness.</strong> The performer authorizes Producer to use their legal name, stage names,
+      likeness, voice, and biographical material in connection with the advertising, marketing, and exploitation of the content,
+      except where restricted in writing.
+    </div>
+
+    <div class="legal-block">
+      4. <strong>Independent Contractor Status.</strong> The performer understands they are engaged as an independent contractor,
+      not an employee, and is responsible for their own taxes and reporting obligations.
+    </div>
+
+    <div class="legal-block">
+      5. <strong>Revocation / Takedown Requests.</strong> Producer will reasonably consider written requests from the performer regarding
+      removal or limited distribution of content, but no guarantee of removal from all platforms or archives is made.
+      Any agreed takedowns or modifications will be confirmed in writing.
+    </div>
+
+    <div class="legal-block">
+      6. <strong>Governing Law.</strong> This release is intended to be interpreted under the laws of the State of New York,
+      without regard to conflict-of-law principles.
+    </div>
+
+    <div class="legal-block">
+      <em>Important:</em> This document is provided for record-keeping and clarity and is not individualized legal advice.
+      Performers and Producer should consult their own attorney regarding their rights and obligations.
+    </div>
+
+    <div class="signature-box">
+      <% if (release) { %>
+        <p><strong>Performer signature on file:</strong> <%= release.signed_name || '—' %></p>
+        <p><strong>Signed at (timestamp):</strong> <%= release.signed_at || '—' %></p>
+        <p><strong>IP address recorded:</strong> <span class="mono"><%= release.ip_address || '—' %></span></p>
+        <p><strong>User-Agent recorded:</strong> <span class="mono"><%= release.user_agent || '—' %></span></p>
+      <% } else { %>
+        <p><strong>Status:</strong> No master release is on file for this model.</p>
+      <% } %>
+
+      <p><strong>Internal reference ID:</strong> Model #<%= user && user.id ? user.id : '—' %></p>
+    </div>
+
+    <div class="signature-box">
+      <p><strong>Producer / Studio:</strong> LumenNyx Studios (Wallkill, NY region)</p>
+      <% if (typeof CONTACT_EMAILS !== 'undefined' && CONTACT_EMAILS) { %>
+        <p><strong>General Contact:</strong> <%= CONTACT_EMAILS.contact || 'contact@lumennyxstudios.com' %></p>
+      <% } else { %>
+        <p><strong>General Contact:</strong> contact@lumennyxstudios.com</p>
+      <% } %>
+    </div>
+  </div>
+</body>
+</html>

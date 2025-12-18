@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Master Model Release – <%= ((user && user.username) ? user.username : ((modelUser && modelUser.username) ? modelUser.username : 'Model')) %></title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 20px; line-height: 1.4; }
+    h1, h2 { margin-bottom: 0.25rem; }
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.1rem; margin-top: 1.2rem; }
+    .meta { font-size: 0.9rem; color: #555; margin-bottom: 1rem; }
+    ul { margin-top: 0.4rem; }
+    li { margin-bottom: 0.25rem; }
+    .note { margin-top: 1.2rem; font-size: 0.85rem; color: #555; }
+    @media print { button { display: none; } }
+  </style>
+</head>
+<body>
+  <%
+    const u = (user || modelUser || {});
+    const mr = (masterRelease || release || null);
+  %>
+
+  <button onclick="window.print()">Print</button>
+
+  <h1>LumenNyx Studios – Master Model Release Record</h1>
+  <div class="meta">
+    Username: <strong><%= u.username || '—' %></strong><br>
+    Generated: <%= new Date().toLocaleString() %>
+  </div>
+
+  <% if (!mr) { %>
+    <p>No master release is on file for this model.</p>
+  <% } else { %>
+    <h2>Signature Record</h2>
+    <ul>
+      <li><strong>Signed name (digital):</strong> <%= mr.signed_name %></li>
+      <li><strong>Signed at (UTC):</strong> <%= mr.signed_at %></li>
+      <li><strong>IP Address:</strong> <%= mr.ip_address || '—' %></li>
+      <li><strong>User-Agent:</strong> <%= mr.user_agent || '—' %></li>
+    </ul>
+
+    <h2>Release Summary (Plain Language)</h2>
+    <p>This model has agreed to the LumenNyx Studios master release, which includes:</p>
+    <ul>
+      <li>Certification of being at least 18 years old with valid ID.</li>
+      <li>Voluntary participation with the right to stop at any time.</li>
+      <li>No hidden cameras; all recording is announced or visible.</li>
+      <li>Grant of rights to record, edit, distribute, and monetize performances.</li>
+      <li>Understanding that full removal of content from the internet cannot be guaranteed.</li>
+      <li>Independent contractor status and responsibility for personal taxes.</li>
+    </ul>
+
+    <p class="note">
+      This page records the electronic signature and timestamp for the master release.
+      A printout may be signed physically if desired for redundancy, but the digital record remains the primary log.
+    </p>
+  <% } %>
+</body>
+</html>

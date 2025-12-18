@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Master Model Release – LumenNyx Studios</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/css/style.css" />
+
+  <style>
+    .wrap { max-width: 980px; margin: 1.5rem auto 2rem auto; padding: 0 1.25rem; }
+    .block { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.10); border-radius: 16px; padding: 1.2rem; }
+    .muted { color:#9aa0b5; font-size:0.92rem; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; font-size:0.88rem; word-break: break-word; }
+    .legal h4 { margin-top: 1.2rem; }
+    .legal p { margin: 0.45rem 0; line-height: 1.45; }
+    .summary-box { background: rgba(0,0,0,0.25); border: 1px dashed rgba(255,255,255,0.2); border-radius: 12px; padding: 0.9rem; }
+  </style>
+</head>
+
+<body class="home">
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a href="/model/profile" class="brand-link">
+      <span class="brand-mark"><img src="/img/lumennyx-mark.png" alt="LumenNyx logo"></span>
+      <span class="brand-text">LUMENNYX STUDIOS</span>
+    </a>
+
+    <nav class="main-nav">
+      <a href="/model/profile" class="active">Model Portal</a>
+      <a href="/model/scenes">My Scenes</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="/2257">2257</a>
+      <form action="/logout" method="POST" style="display:inline;">
+        <button class="btn secondary" style="padding:0.25rem 0.9rem;font-size:0.8rem;">Logout</button>
+      </form>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <% if (message) { %>
+    <div class="alert success"><%= message %></div>
+  <% } %>
+  <% if (error) { %>
+    <div class="alert error"><%= error %></div>
+  <% } %>
+
+  <section class="portal-section">
+    <h2>Master Model Release & Performance Agreement</h2>
+    <p class="portal-note">
+      This is the studio’s general, legally binding master agreement.
+      Scene-specific boundaries, acts, partners, and limits are handled separately
+      via consent &amp; safety forms or written addenda.
+    </p>
+
+    <div class="block legal">
+
+      <!-- ============================= -->
+      <!-- BINDING LEGAL AGREEMENT TEXT -->
+      <!-- ============================= -->
+
+      <h4>1. Identification & Age Verification</h4>
+      <p>
+        The undersigned performer (“Performer”) represents and warrants that they are at least
+        eighteen (18) years of age and of legal capacity to enter into this Agreement.
+        Performer affirms that all identification documents submitted to LumenNyx Studios
+        (“Studio”) are accurate, authentic, and belong to Performer.
+      </p>
+
+      <h4>2. Voluntary Participation & Capacity</h4>
+      <p>
+        Performer confirms participation is voluntary and free from coercion, impairment,
+        or duress. Performer understands the nature of adult content production and
+        affirms the legal capacity to enter this Agreement.
+      </p>
+
+      <h4>3. Grant of Rights</h4>
+      <p>
+        Performer irrevocably grants Studio and its licensees the right to photograph,
+        record, reproduce, edit, distribute, publish, transmit, display, license, and
+        otherwise exploit Performer’s image, likeness, voice, name(s), and performance
+        in any media now known or later developed, worldwide, in perpetuity,
+        subject only to written limitations expressly agreed and signed by both parties.
+      </p>
+
+      <h4>4. Compensation Acknowledgment</h4>
+      <p>
+        Performer acknowledges that compensation terms may be set per project or addendum.
+        Unless expressly stated in writing, Performer is not entitled to royalties or residuals.
+      </p>
+
+      <h4>5. Independent Contractor Status</h4>
+      <p>
+        Performer is an independent contractor and not an employee of Studio.
+        Performer is solely responsible for taxes, filings, and insurance.
+      </p>
+
+      <h4>6. Assumption of Risk</h4>
+      <p>
+        Performer acknowledges that participation may involve physical exertion and
+        voluntarily assumes all lawful risks associated with agreed performance activities.
+      </p>
+
+      <h4>7. Waiver of Inspection & Approval</h4>
+      <p>
+        Performer waives any right to inspect or approve final content, titles, edits,
+        or promotional materials, provided Performer is not materially misrepresented.
+      </p>
+
+      <h4>8. Internet & Distribution Disclaimer</h4>
+      <p>
+        Performer understands that once content is distributed, complete removal
+        from the internet cannot be guaranteed due to third-party redistribution or piracy.
+      </p>
+
+      <h4>9. Release of Liability & Indemnification</h4>
+      <p>
+        To the maximum extent permitted by law, Performer releases Studio from claims
+        arising from authorized use under this Agreement and agrees to indemnify Studio
+        for losses caused by Performer’s breach of representations.
+      </p>
+
+      <h4>10. Governing Law & Venue</h4>
+      <p>
+        This Agreement shall be governed by the laws of the State of New York,
+        with venue in New York state or federal courts.
+      </p>
+
+      <h4>11. Electronic Signature & Metadata</h4>
+      <p>
+        Performer agrees that electronic execution constitutes a valid signature.
+        The system records date, time, IP address, and user-agent as evidence of execution.
+      </p>
+
+      <!-- ============================= -->
+      <!-- NON-BINDING SUMMARY -->
+      <!-- ============================= -->
+
+      <hr style="border-color: rgba(255,255,255,0.10); margin: 1.2rem 0;" />
+
+      <div class="summary-box">
+        <h4 style="margin-top:0;">Plain-Language Summary (Non-Binding)</h4>
+        <ul>
+          <li>You confirm you are 18+ and your ID is real.</li>
+          <li>You are participating voluntarily.</li>
+          <li>The studio can record and distribute agreed content.</li>
+          <li>Payment terms may vary by shoot.</li>
+          <li>You are an independent contractor.</li>
+          <li>Full internet removal cannot be guaranteed.</li>
+        </ul>
+        <p class="muted">
+          This summary is for convenience only. The legal agreement above controls.
+        </p>
+      </div>
+
+      <!-- ============================= -->
+      <!-- SIGNATURE STATUS -->
+      <!-- ============================= -->
+
+      <hr style="border-color: rgba(255,255,255,0.10); margin: 1.2rem 0;" />
+
+      <h4>Signature Status</h4>
+      <% if (masterRelease) { %>
+        <p>
+          <strong>On file:</strong>
+          Signed as <em><%= masterRelease.signed_name %></em>
+          on <%= masterRelease.signed_at %>.
+        </p>
+        <p class="mono">
+          IP: <%= masterRelease.ip_address || '—' %><br/>
+          User-Agent: <%= masterRelease.user_agent || '—' %>
+        </p>
+        <p class="muted">
+          Re-signing will add a new record; prior signatures may be retained for audit purposes.
+        </p>
+      <% } else { %>
+        <p><strong>Status:</strong> Not signed yet.</p>
+      <% } %>
+
+      <!-- ============================= -->
+      <!-- SIGNATURE FORM -->
+      <!-- ============================= -->
+
+      <form action="/model/release" method="POST" class="portal-form" style="margin-top:1rem;">
+
+        <label class="checkbox-label">
+          <input type="checkbox" name="agree_master_release" required />
+          I confirm I am at least 18 years old and agree this is a legally binding contract.
+        </label>
+
+        <label class="checkbox-label">
+          <input type="checkbox" required />
+          I consent to electronic signature and metadata recording.
+        </label>
+
+        <label>
+          Type your full legal name as your digital signature *
+          <input type="text" name="signed_name" required placeholder="Full legal name" />
+        </label>
+
+        <button type="submit" class="btn primary">
+          <%= masterRelease ? 'Re-Sign Master Release' : 'Sign Master Release' %>
+        </button>
+
+        <div style="margin-top:0.75rem;">
+          <a class="btn secondary" href="/model/profile#release">Back to Profile</a>
+        </div>
+      </form>
+
+    </div>
+  </section>
+</main>
+</body>
+</html>

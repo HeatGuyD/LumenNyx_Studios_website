@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Adults-Only Notice – LumenNyx Studios</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body class="auth-page">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/" class="brand-link">
+        <span class="brand-mark">
+          <img src="/img/lumennyx-mark.png" alt="LumenNyx logo">
+        </span>
+        <span class="brand-text">LUMENNYX STUDIOS</span>
+      </a>
+
+      <nav class="main-nav">
+        <a href="/" class="active">Home</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="/2257">2257</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-wrapper">
+    <section class="auth-card">
+      <h2>Adults-Only Private Portal</h2>
+      <p class="auth-subtext">
+        This is a private model and studio collaborator portal for
+        <strong>LumenNyx Studios</strong>, an independent adult production
+        studio based near Wallkill, NY (Hudson Valley region).
+      </p>
+
+      <div class="release-box" style="margin-bottom: 1.1rem;">
+        <div class="release-text">
+          <p>To continue, you must confirm that:</p>
+          <ul>
+            <li>You are at least <strong>18 years old</strong> (or 21+ where required by local law).</li>
+            <li>You understand this portal relates to <strong>adult content production</strong>, not escorting or prostitution.</li>
+            <li>You are accessing this portal from a place where viewing / working with adult-content-related material is <strong>legal</strong>.</li>
+            <li>You will keep login details private and will not allow anyone under 18 to view or use this portal.</li>
+          </ul>
+
+          <p class="field-help" style="margin-top: 0.6rem;">
+            This portal is <strong>not a public porn site</strong>. It is for models, talent, and studio staff
+            to manage paperwork, IDs, releases, and scene logistics. Nothing here is individualized legal advice.
+            For model onboarding, contact <strong>models@lumennyxstudios.com</strong>. For general support, contact
+            <strong>support@lumennyxstudios.com</strong>.
+          </p>
+        </div>
+      </div>
+
+      <% if (typeof error !== 'undefined' && error) { %>
+        <div class="alert error"><%= error %></div>
+      <% } %>
+
+      <form action="/age-check" method="POST" class="auth-form">
+        <input type="hidden" name="age_confirm" value="yes" />
+        <button type="submit" class="btn primary" style="width: 100%; margin-bottom: 0.6rem;">
+          I am 18 or older and I agree
+        </button>
+      </form>
+
+      <button
+        type="button"
+        class="btn secondary"
+        style="width: 100%; margin-top: 0.2rem;"
+        onclick="window.location.href='https://www.google.com';"
+      >
+        I am under 18 / Take me away
+      </button>
+
+      <p class="auth-note">
+        By clicking “I am 18 or older and I agree”, you confirm that your statements are true and that you understand
+        this is a professional production portal. Misrepresentation may violate local or federal law.
+      </p>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Model Review – <%= user?.username || 'Model' %> | LumenNyx Studios</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/studio-panel" class="brand-link">
+        <span class="brand-mark">
+          <img src="/img/lumennyx-mark.png" alt="LumenNyx logo">
+        </span>
+        <span class="brand-text">LUMENNYX STUDIOS</span>
+      </a>
+
+      <nav class="main-nav">
+        <a href="/studio-panel">Studio Panel</a>
+        <a href="/studio-panel/models" class="active">Models</a>
+        <a href="/studio-panel/scenes">Scenes</a>
+        <a href="/2257">2257</a>
+
+        <form action="/logout" method="POST" style="display:inline;">
+          <button type="submit" class="btn secondary" style="padding:0.3rem 0.9rem;font-size:0.75rem;">
+            Logout
+          </button>
+        </form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-wrapper">
+    <section class="panel">
+      <h2>Model Inspection</h2>
+      <p class="subtext">
+        Internal-only view. Review identity, compliance documents, releases, and consent/safety policies.
+      </p>
+
+      <%
+        const hasRelease = !!masterRelease;
+        const hasConsent = !!policies;
+        const headshot = profile?.headshot_path ? `/uploads/photos/${profile.headshot_path}` : null;
+        const preferredName = (profile?.preferred_name || '').trim();
+        const legalName = (profile?.legal_name || '').trim();
+        const dob = (profile?.date_of_birth || '').trim();
+
+        const status = (user?.status || '').toLowerCase();
+      %>
+
+      <!-- Account Approval Controls -->
+      <div class="panel-inner" style="margin: 14px 0 18px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap: 12px; flex-wrap:wrap;">
+          <div>
+            <div style="font-size:0.9rem;color:#b5b5cf;">Account Status</div>
+            <div style="font-size:1.1rem;font-weight:700;">
+              <%= user?.status || '—' %>
+            </div>
+          </div>
+
+          <form action="/studio-panel/models/<%= user.id %>/status" method="POST" style="display:flex; gap:10px; align-items:center;">
+            <label style="font-size:0.85rem;color:#b5b5cf;">Set Status:</label>
+            <select name="status" class="input" style="padding:0.45rem 0.6rem;">
+              <option value="pending" <%= status === 'pending' ? 'selected' : '' %>>Pending</option>
+              <option value="approved" <%= status === 'approved' ? 'selected' : '' %>>Approved</option>
+              <option value="disabled" <%= status === 'disabled' ? 'selected' : '' %>>Disabled</option>
+            </select>
+            <button type="submit" class="btn primary">Update</button>
+          </form>
+        </div>
+
+        <div style="margin-top:8px;color:#9aa0b5;font-size:0.8rem;">
+          Note: Models cannot log in until status is <strong>approved</strong>.
+        </div>
+      </div>
+
+      <div class="status-row" style="display:flex; gap:12px; flex-wrap:wrap; margin: 14px 0 18px;">
+        <div class="status-pill <%= hasRelease ? 'ok' : 'pending' %>">
+          <span class="label">Master Release:</span>
+          <span><%= hasRelease ? 'Signed' : 'Not signed' %></span>
+        </div>
+
+        <div class="status-pill <%= hasConsent ? 'ok' : 'pending' %>">
+          <span class="label">Consent &amp; Safety:</span>
+          <span><%= hasConsent ? 'Saved' : 'Not completed' %></span>
+        </div>
+
+        <div class="status-pill <%= (documents && documents.length) ? 'ok' : 'pending' %>">
+          <span class="label">Compliance Docs:</span>
+          <span><%= (documents && documents.length) ? `${documents.length} file(s)` : 'None' %></span>
+        </div>
+
+        <div class="status-pill <%= (photos && photos.length) ? 'ok' : 'pending' %>">
+          <span class="label">Photos:</span>
+          <span><%= (photos && photos.length) ? `${photos.length} photo(s)` : 'None' %></span>
+        </div>
+      </div>
+
+      <div class="grid-2" style="display:grid; grid-template-columns: 1fr 1fr; gap: 18px;">
+        <div class="panel-inner">
+          <h3 style="margin-top:0;">Identity & Account</h3>
+
+          <table class="kv-table">
+            <tr>
+              <th>Username</th>
+              <td><%= user?.username || '—' %></td>
+            </tr>
+            <tr>
+              <th>Status</th>
+              <td><%= user?.status || '—' %></td>
+            </tr>
+            <tr>
+              <th>Email</th>
+              <td><%= user?.email || profile?.email || '—' %></td>
+            </tr>
+            <tr>
+              <th>Preferred Name</th>
+              <td><%= preferredName || '—' %></td>
+            </tr>
+            <tr>
+              <th>Legal Name</th>
+              <td><%= legalName || '—' %></td>
+            </tr>
+            <tr>
+              <th>Date of Birth</th>
+              <td><%= dob || '—' %></td>
+            </tr>
+            <tr>
+              <th>Phone</th>
+              <td><%= profile?.phone || '—' %></td>
+            </tr>
+            <tr>
+              <th>Location</th>
+              <td><%= [profile?.state, profile?.country].filter(Boolean).join(', ') || '—' %></td>
+            </tr>
+            <tr>
+              <th>Emergency Contact</th>
+              <td>
+                <%= profile?.emergency_name || '—' %>
+                <%= profile?.emergency_phone ? ` (${profile.emergency_phone})` : '' %>
+              </td>
+            </tr>
+          </table>
+
+          <div style="margin-top: 12px; display:flex; gap: 10px; flex-wrap:wrap;">
+            <a class="btn secondary" href="/studio-panel/models">Back to Models</a>
+
+            <a class="btn primary" href="/studio-panel/models/<%= user.id %>/identity" target="_blank" rel="noopener">
+              Print Identity Summary
+            </a>
+
+            <% if (hasRelease) { %>
+              <a class="btn primary" href="/studio-panel/models/<%= user.id %>/master-release" target="_blank" rel="noopener">
+                Print Master Release
+              </a>
+            <% } %>
+
+            <% if (hasConsent) { %>
+              <a class="btn primary" href="/studio-panel/models/<%= user.id %>/consent" target="_blank" rel="noopener">
+                Print Consent &amp; Safety
+              </a>
+            <% } %>
+          </div>
+
+          <!-- NEW: Email Identity PDF -->
+          <div class="panel-inner" style="margin-top: 14px;">
+            <h4 style="margin:0 0 8px;">Email Identity PDF</h4>
+            <form action="/studio-panel/models/<%= user.id %>/email/identity" method="POST" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+              <label style="display:flex; align-items:center; gap:8px; font-size:0.9rem; color:#b5b5cf;">
+                <input type="checkbox" name="send_to_model" value="yes" />
+                Also email to model address (if on file)
+              </label>
+              <button type="submit" class="btn secondary">Email Identity PDF</button>
+            </form>
+            <div style="margin-top:6px; font-size:0.8rem; color:#9aa0b5;">
+              Sends to studio archive (<code>MAIL_TO_STUDIO</code>) and optionally the model email.
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-inner">
+          <h3 style="margin-top:0;">Headshot</h3>
+
+          <% if (headshot) { %>
+            <a href="<%= headshot %>" target="_blank" rel="noopener">
+              <img src="<%= headshot %>" alt="Headshot" style="width:100%; max-height: 320px; object-fit: contain; border-radius: 14px;">
+            </a>
+            <p class="field-help" style="margin-top: 8px;">
+              Click the image to open full-size in a new tab.
+            </p>
+          <% } else { %>
+            <div class="empty-state">No headshot on file.</div>
+          <% } %>
+        </div>
+      </div>
+
+      <div class="panel-inner" style="margin-top: 18px;">
+        <h3>Compliance Documents</h3>
+        <p class="field-help">
+          Stored privately under /uploads/docs. Download each file for offline storage and legal review.
+        </p>
+
+        <% if (documents && documents.length) { %>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Filename</th>
+                <th>Uploaded</th>
+                <th>Download</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% documents.forEach((d) => { %>
+                <tr>
+                  <td><%= d.doc_type || 'other' %></td>
+                  <td><%= d.filename %></td>
+                  <td><%= d.uploaded_at || '—' %></td>
+                  <td>
+                    <a class="btn secondary" href="/uploads/docs/<%= d.filename %>" target="_blank" rel="noopener">
+                      Open / Download
+                    </a>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        <% } else { %>
+          <div class="empty-state">No compliance documents uploaded.</div>
+        <% } %>
+      </div>
+
+      <div class="panel-inner" style="margin-top: 18px;">
+        <h3>Portfolio Photos</h3>
+        <p class="field-help">Click any image to open full-size.</p>
+
+        <% if (photos && photos.length) { %>
+          <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px;">
+            <% photos.forEach((p) => {
+              const src = `/uploads/photos/${p.filename}`;
+            %>
+              <a href="<%= src %>" target="_blank" rel="noopener" style="text-decoration:none;">
+                <div class="photo-tile" style="border-radius:14px; overflow:hidden;">
+                  <img src="<%= src %>" alt="Photo" style="width:100%; height: 160px; object-fit: cover;">
+                </div>
+              </a>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <div class="empty-state">No portfolio photos uploaded.</div>
+        <% } %>
+      </div>
+
+      <div class="panel-inner" style="margin-top: 18px;">
+        <h3>Consent &amp; Safety Summary</h3>
+
+        <% if (!hasConsent) { %>
+          <div class="empty-state">Consent &amp; safety policies not completed.</div>
+        <% } else { %>
+          <table class="kv-table">
+            <tr>
+              <th>STI Routine Confirmed</th>
+              <td><%= policies.sti_testing_routine ? 'Yes' : 'No / Not stated' %></td>
+            </tr>
+            <tr>
+              <th>STI Disclosure Truth Ack</th>
+              <td><%= policies.sti_disclosure_truth ? 'Yes' : 'No / Not stated' %></td>
+            </tr>
+            <tr>
+              <th>Notes</th>
+              <td><%= policies.sti_notes || '—' %></td>
+            </tr>
+            <tr>
+              <th>Allows Kissing</th>
+              <td><%= policies.consent_allows_kissing ? 'Yes' : 'No' %></td>
+            </tr>
+            <tr>
+              <th>Allows Nudity</th>
+              <td><%= policies.consent_allows_nudity ? 'Yes' : 'No' %></td>
+            </tr>
+            <tr>
+              <th>Allows Rough</th>
+              <td><%= policies.consent_allows_rough ? 'Yes' : 'No' %></td>
+            </tr>
+            <tr>
+              <th>Allows Choking</th>
+              <td><%= policies.consent_allows_choking ? 'Yes' : 'No' %></td>
+            </tr>
+            <tr>
+              <th>Hard Limits</th>
+              <td><%= policies.consent_hard_limits || '—' %></td>
+            </tr>
+            <tr>
+              <th>Soft Limits</th>
+              <td><%= policies.consent_soft_limits || '—' %></td>
+            </tr>
+            <tr>
+              <th>Contractor Ack</th>
+              <td><%= policies.contractor_acknowledge ? 'Yes' : 'No / Not stated' %></td>
+            </tr>
+            <tr>
+              <th>Contractor Signature</th>
+              <td><%= policies.contractor_signature || '—' %></td>
+            </tr>
+            <tr>
+              <th>Saved</th>
+              <td><%= policies.created_at || '—' %></td>
+            </tr>
+          </table>
+        <% } %>
+      </div>
+
+    </section>
+  </main>
+</body>
+</html>

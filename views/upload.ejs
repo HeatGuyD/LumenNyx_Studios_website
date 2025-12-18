@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Upload Scene – LumenNyx Studios</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+ <header class="site-header">
+  <div class="header-inner">
+    <div class="brand">
+      <a href="/" class="brand-link">
+        <img src="/images/lumennyx-logo.png" alt="LumenNyx Studios Logo" class="brand-logo">
+        <span class="brand-text">LumenNyx Studios</span>
+      </a>
+    </div>
+
+    <nav class="main-nav">
+      <a href="/" class="nav-link">Home</a>
+
+      <% if (!isAuthenticated) { %>
+        <a href="/register" class="nav-link">Create Account</a>
+        <a href="/login" class="nav-link">Model Login</a>
+        <a href="/staff-login" class="nav-link">Staff Login</a>
+      <% } else { %>
+        <% if (role === 'model') { %>
+          <a href="/model/profile" class="nav-link">My Profile</a>
+          <a href="/my-scenes" class="nav-link">My Scenes</a>
+        <% } else if (role === 'admin' || role === 'staff') { %>
+          <a href="/studio-panel" class="nav-link">Studio Panel</a>
+          <% if (role === 'admin') { %>
+            <a href="/upload" class="nav-link">Upload Scene</a>
+          <% } %>
+        <% } %>
+        <a href="/logout" class="nav-link">Logout</a>
+      <% } %>
+
+      <a href="/2257" class="nav-link">2257 / Legal</a>
+    </nav>
+  </div>
+</header>
+
+
+  <main class="page-container">
+    <section class="panel">
+      <h1>Upload New Scene</h1>
+      <p class="panel-intro">
+        Use this form to upload a new video scene to the internal LumenNyx Studios
+        library. Make sure all metadata is accurate so models can see their scenes
+        correctly in their portals.
+      </p>
+
+      <% if (error) { %>
+        <div class="flash flash-error"><%= error %></div>
+      <% } %>
+
+      <form
+        class="upload-form"
+        method="POST"
+        action="/upload"
+        enctype="multipart/form-data"
+      >
+        <!-- Basic Info -->
+        <fieldset class="form-section">
+          <legend>Scene Information</legend>
+
+          <label>
+            Scene Title
+            <input type="text" name="title" required>
+          </label>
+
+          <label>
+            Description
+            <textarea name="description" rows="4" placeholder="Short description of the scene..."></textarea>
+          </label>
+
+          <div class="form-row">
+            <label>
+              Category
+              <input
+                type="text"
+                name="category"
+                placeholder="e.g. Solo, Boy/Girl, Fetish, etc."
+              >
+            </label>
+
+            <label>
+              Tags (comma-separated)
+              <input
+                type="text"
+                name="tags"
+                placeholder="e.g. tattoo, brunette, lingerie"
+              >
+            </label>
+          </div>
+        </fieldset>
+
+        <!-- Performer Tagging -->
+        <fieldset class="form-section">
+          <legend>Performer Tagging</legend>
+
+          <p class="hint">
+            The <strong>Performer Name</strong> must exactly match the model’s
+            <strong>username</strong> in the portal if you want the scene to appear
+            under <em>My Scenes</em> for them.
+          </p>
+
+          <label>
+            Performer Username (for model portal)
+            <input
+              type="text"
+              name="performer_name"
+              placeholder="Exact model username, e.g. NyxStar"
+            >
+          </label>
+
+          <p class="hint small">
+            You can leave this blank if the model does not yet have a portal account,
+            and add or update tagging later (once we build editing tools).
+          </p>
+        </fieldset>
+
+        <!-- File & Visibility -->
+        <fieldset class="form-section">
+          <legend>Video File &amp; Visibility</legend>
+
+          <label>
+            Video File (MP4, WEBM, or OGG)
+            <input type="file" name="video" accept=".mp4,.webm,.ogg" required>
+          </label>
+
+          <div class="visibility-options">
+            <span class="vis-label">Visibility</span>
+
+            <label class="radio-option">
+              <input type="radio" name="visibility" value="private" checked>
+              <span>
+                <strong>Private / Internal</strong><br>
+                Scene is only available inside the studio portal (models + staff).
+              </span>
+            </label>
+
+            <label class="radio-option">
+              <input type="radio" name="visibility" value="public">
+              <span>
+                <strong>Public-Ready</strong><br>
+                Marked as ready for future public deployment. Still locked to your
+                internal site until you build the separate paid viewer site.
+              </span>
+            </label>
+          </div>
+
+          <p class="hint small">
+            This setting is mainly for your own tracking. Actual public publishing
+            will happen separately, on a different consumer-facing site.
+          </p>
+        </fieldset>
+
+        <div class="form-actions">
+          <button type="submit" class="btn primary">Upload Scene</button>
+          <a href="/studio-panel" class="btn secondary">Cancel &amp; Go Back</a>
+        </div>
+
+        <p class="disclaimer small">
+          By uploading this video, you confirm that all performers were at least 18 years old
+          at the time of filming and that you have signed releases and 2257-compliant
+          documentation stored in your records.
+        </p>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

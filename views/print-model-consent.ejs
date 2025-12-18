@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Consent & Safety Profile – <%= (user && user.username) ? user.username : 'Model' %></title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 20px; line-height: 1.4; }
+    h1, h2 { margin-bottom: 0.25rem; }
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.1rem; margin-top: 1.2rem; }
+    .meta { font-size: 0.9rem; color: #555; margin-bottom: 1rem; }
+    ul { margin-top: 0.4rem; }
+    li { margin-bottom: 0.25rem; }
+    .note { margin-top: 1.2rem; font-size: 0.85rem; color: #555; }
+    .box {
+      border: 1px solid #bbb;
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-top: 10px;
+    }
+    .blank-lines { margin-top: 8px; }
+    .blank-line { border-bottom: 1px solid #bbb; height: 18px; margin: 10px 0; }
+    .checkrow { margin: 8px 0; }
+    .check {
+      display:inline-block;
+      width: 14px; height: 14px;
+      border:1px solid #444;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    @media print { button { display: none; } }
+  </style>
+</head>
+<body>
+  <button onclick="window.print()">Print</button>
+
+  <h1>LumenNyx Studios – Consent & Safety Profile</h1>
+  <div class="meta">
+    Username: <strong><%= (user && user.username) ? user.username : '—' %></strong><br>
+    Generated: <%= new Date().toLocaleString() %><br>
+
+    <%
+      // Optional: only if app.js passes CONTACT_EMAILS
+      const emails = (typeof CONTACT_EMAILS !== 'undefined' && CONTACT_EMAILS) ? CONTACT_EMAILS : null;
+    %>
+
+    <% if (emails && (emails.support || emails.legal || emails.release)) { %>
+      Support:
+      <a href="mailto:<%= emails.support || '' %>"><%= emails.support || '—' %></a>
+      &nbsp;|&nbsp;
+      Legal:
+      <a href="mailto:<%= emails.legal || '' %>"><%= emails.legal || '—' %></a>
+      &nbsp;|&nbsp;
+      Releases:
+      <a href="mailto:<%= emails.release || '' %>"><%= emails.release || '—' %></a>
+    <% } %>
+  </div>
+
+  <% if (!policies) { %>
+    <p>No consent / safety profile has been saved for this model.</p>
+
+    <div class="box">
+      <h2>Additional Preferences (Fill-in)</h2>
+      <p class="meta" style="margin-top:0;">
+        Use this section for additional do’s / don’ts and any last-minute scope notes.
+      </p>
+
+      <div class="checkrow"><span class="check"></span> BTS / behind-the-scenes or promo content discussed separately</div>
+      <div class="checkrow"><span class="check"></span> No BTS / promo recording beyond what is agreed in writing</div>
+
+      <div class="blank-lines">
+        <div><strong>Do’s / OK if agreed:</strong></div>
+        <div class="blank-line"></div>
+        <div class="blank-line"></div>
+        <div class="blank-line"></div>
+
+        <div style="margin-top:10px;"><strong>Don’ts / Not OK:</strong></div>
+        <div class="blank-line"></div>
+        <div class="blank-line"></div>
+        <div class="blank-line"></div>
+
+        <div style="margin-top:10px;"><strong>Notes / triggers / safety needs:</strong></div>
+        <div class="blank-line"></div>
+        <div class="blank-line"></div>
+      </div>
+    </div>
+
+  <% } else { %>
+    <h2>General Comfort & Consent</h2>
+    <ul>
+      <li>Kissing: <%= policies.consent_allows_kissing ? 'Generally OK' : 'Not checked' %></li>
+      <li>Nudity: <%= policies.consent_allows_nudity ? 'OK' : 'Not checked' %></li>
+      <li>Rough / intense themes: <%= policies.consent_allows_rough ? 'Open with limits' : 'Not checked' %></li>
+      <li>Breath-related fantasy content: <%= policies.consent_allows_choking ? 'Open with limits' : 'Not checked' %></li>
+    </ul>
+
+    <h2>Hard Limits (Never OK)</h2>
+    <p><%= policies.consent_hard_limits || '(none listed)' %></p>
+
+    <h2>Soft Limits (“Ask First”)</h2>
+    <p><%= policies.consent_soft_limits || '(none listed)' %></p>
+
+    <h2>On-Set Safety Rules</h2>
+    <ul>
+      <li>No illegal drugs / no performing while impaired: <%= policies.policy_no_substances ? 'Acknowledged' : 'Not checked' %></li>
+      <li>Safe word stops all activity: <%= policies.policy_safe_word ? 'Acknowledged' : 'Not checked' %></li>
+      <li>Breaks allowed: <%= policies.policy_breaks ? 'Acknowledged' : 'Not checked' %></li>
+      <li>Reporting unsafe behavior: <%= policies.policy_reporting ? 'Acknowledged' : 'Not checked' %></li>
+    </ul>
+
+    <h2>Content Removal Expectations</h2>
+    <ul>
+      <li>Understands full internet removal is not guaranteed: <%= policies.policy_understand_no_guaranteed_removal ? 'Yes' : 'Not checked' %></li>
+      <li>May request internal takedowns in good faith: <%= policies.policy_internal_requests ? 'Yes' : 'Not checked' %></li>
+    </ul>
+    <p><strong>Removal notes:</strong> <%= policies.policy_removal_notes || '(none)' %></p>
+
+    <% if (emails && emails.release) { %>
+      <p>
+        <strong>Release / removal requests:</strong>
+        <a href="mailto:<%= emails.release %>"><%= emails.release %></a>
+      </p>
+    <% } %>
+
+    <h2>Contractor Acknowledgement</h2>
+    <ul>
+      <li>Independent contractor, not employee: <%= policies.contractor_acknowledge ? 'Yes' : 'Not checked' %></li>
+      <li>Digital signature / typed name: <%= policies.contractor_signature || '(none)' %></li>
+    </ul>
+
+    <div class="box">
+      <h2>Additional Preferences (Fill-in)</h2>
+      <p class="meta" style="margin-top:0;">
+        Optional. Use for “do’s / don’ts,” BTS/promo preferences, and any last-minute scope notes.
+        Keep this high-level and non-graphic.
+      </p>
+
+      <div class="checkrow"><span class="check"></span> BTS / behind-the-scenes or promo content discussed separately</div>
+      <div class="checkrow"><span class="check"></span> No BTS / promo recording beyond what is agreed in writing</div>
+
+      <div class="blank-lines">
+        <div><strong>Do’s / OK if agreed:</strong></div>
+        <div class="blank-line"></div>
+        <div class="blank-line"></div>
+        <div class="blank-line"></div>
+
+        <div style="margin-top:10px;"><strong>Don’ts / Not OK:</strong></div>
+        <div class="blank-line"></div>
+        <div class="blank-line"></div>
+        <div class="blank-line"></div>
+
+        <div style="margin-top:10px;"><strong>Notes / triggers / safety needs:</strong></div>
+        <div class="blank-line"></div>
+        <div class="blank-line"></div>
+      </div>
+    </div>
+
+    <p class="note">
+      This consent profile is a planning and safety reference. Scene-specific agreements should still be used
+      to document partners, restrictions, and stop-words for each shoot.
+    </p>
+  <% } %>
+</body>
+</html>

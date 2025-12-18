@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>My Scenes – LumenNyx Studios</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+  <div class="header-inner">
+    <div class="brand">
+      <a href="/" class="brand-link">
+        <img src="/images/lumennyx-logo.png" alt="LumenNyx Studios Logo" class="brand-logo">
+        <span class="brand-text">LumenNyx Studios</span>
+      </a>
+    </div>
+
+    <nav class="main-nav">
+      <a href="/" class="nav-link">Home</a>
+
+      <% if (!isAuthenticated) { %>
+        <a href="/register" class="nav-link">Create Account</a>
+        <a href="/login" class="nav-link">Model Login</a>
+        <a href="/staff-login" class="nav-link">Staff Login</a>
+      <% } else { %>
+        <% if (role === 'model') { %>
+          <a href="/model/profile" class="nav-link">My Profile</a>
+          <a href="/my-scenes" class="nav-link">My Scenes</a>
+        <% } else if (role === 'admin' || role === 'staff') { %>
+          <a href="/studio-panel" class="nav-link">Studio Panel</a>
+          <% if (role === 'admin') { %>
+            <a href="/upload" class="nav-link">Upload Scene</a>
+          <% } %>
+        <% } %>
+        <a href="/logout" class="nav-link">Logout</a>
+      <% } %>
+
+      <a href="/2257" class="nav-link">2257 / Legal</a>
+    </nav>
+  </div>
+</header>
+
+
+  <main class="page-container">
+    <section class="panel">
+      <h1>My Scenes</h1>
+      <p class="panel-intro">
+        These are the scenes where you are listed as the performer for
+        <strong><%= username %></strong>. If something is missing or incorrect,
+        please contact the studio so we can adjust the tagging and paperwork.
+      </p>
+
+      <% if (!videos || videos.length === 0) { %>
+        <div class="empty-state">
+          <p>You don’t have any scenes assigned to your profile yet.</p>
+          <p class="hint">
+            Once the studio uploads and tags scenes with your performer name,
+            they will appear here for private review.
+          </p>
+        </div>
+      <% } else { %>
+        <div class="video-grid">
+          <% videos.forEach(function(v) { %>
+            <article class="video-card">
+              <a href="/video/<%= v.id %>" class="thumb-link">
+                <% if (v.thumbnail_filename) { %>
+                  <img
+                    class="thumb"
+                    src="/thumbnails/<%= v.thumbnail_filename %>"
+                    alt="Thumbnail for <%= v.title %>">
+                <% } else { %>
+                  <div class="thumb thumb-placeholder">
+                    No thumbnail
+                  </div>
+                <% } %>
+              </a>
+
+              <div class="video-meta">
+                <h2 class="video-title">
+                  <a href="/video/<%= v.id %>"><%= v.title %></a>
+                </h2>
+
+                <% if (v.category) { %>
+                  <p class="category-tag"><%= v.category %></p>
+                <% } %>
+
+                <% if (v.tags) { %>
+                  <p class="tags-line">
+                    <strong>Tags:</strong> <%= v.tags %>
+                  </p>
+                <% } %>
+
+                <p class="description">
+                  <%= v.description || 'No description provided for this scene.' %>
+                </p>
+
+                <p class="meta-small">
+                  Filmed / uploaded: <%= v.created_at %>
+                </p>
+              </div>
+            </article>
+          <% }); %>
+        </div>
+      <% } %>
+
+      <div class="panel-footer-links">
+        <a href="/model/profile" class="btn secondary">Update My Profile & Legal Info</a>
+        <a href="/" class="btn ghost">Back to Home</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

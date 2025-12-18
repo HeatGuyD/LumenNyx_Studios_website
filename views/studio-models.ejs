@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Manage Model Accounts – LumenNyx Studios</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body class="model-portal">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/studio-panel" class="brand-link">
+        <span class="brand-mark">
+          <img src="/img/lumennyx-mark.png" alt="LumenNyx sun/moon logo" />
+        </span>
+        <span class="brand-text">LUMENNYX STUDIOS</span>
+      </a>
+
+      <nav class="main-nav">
+        <a href="/studio-panel">Studio Panel</a>
+        <a href="/studio-panel/models" class="active">Models</a>
+        <a href="/studio-panel/scenes">Scenes</a>
+        <a href="/2257">2257</a>
+        <form action="/logout" method="POST" style="display:inline;">
+          <button type="submit" class="btn secondary" style="padding:0.3rem 0.9rem;font-size:0.75rem;">
+            Logout
+          </button>
+        </form>
+      </nav>
+    </div>
+  </header>
+
+  <main style="max-width: 1200px; margin: 2.5rem auto; padding: 0 1.5rem;">
+    <section class="portal-section">
+      <h3>Manage Model Accounts</h3>
+      <p class="portal-note">
+        Internal-only view for LumenNyx Studios staff. Approve/disable accounts, and verify docs, release, consent, and photos.
+      </p>
+
+      <div class="documents-list">
+        <table>
+          <thead>
+            <tr>
+              <th>Headshot</th>
+              <th>Username / Name</th>
+              <th>DOB</th>
+              <th>Docs</th>
+              <th>Photos</th>
+              <th>Release</th>
+              <th>Consent</th>
+              <th>W-9</th>
+              <th>Account Status</th>
+              <th>Inspect</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <% if (models && models.length) { %>
+              <% models.forEach(function(model) { 
+                const headshotSrc = model.headshot_path ? `/uploads/photos/${model.headshot_path}` : null;
+              %>
+                <tr>
+                  <td>
+                    <% if (headshotSrc) { %>
+                      <a href="<%= headshotSrc %>" target="_blank" rel="noopener">
+                        <img
+                          src="<%= headshotSrc %>"
+                          alt="Headshot for <%= model.username %>"
+                          style="width:40px;height:40px;border-radius:50%;object-fit:cover;"
+                        />
+                      </a>
+                    <% } else { %>
+                      <span class="field-help">No headshot</span>
+                    <% } %>
+                  </td>
+
+                  <td>
+                    <strong><%= model.username %></strong><br />
+                    <span style="font-size:0.85rem;color:#b5b5cf;">
+                      <%= model.preferred_name || model.legal_name || '—' %>
+                    </span>
+                    <div style="font-size:0.8rem;color:#9aa0b5;margin-top:4px;">
+                      Status: <strong><%= model.status %></strong>
+                    </div>
+                  </td>
+
+                  <td><%= model.date_of_birth || '—' %></td>
+
+                  <td>
+                    <% if ((model.docs_count || 0) > 0) { %>
+                      <span class="status-pill ok"><span class="label">Docs:</span> Uploaded</span>
+                    <% } else { %>
+                      <span class="status-pill missing"><span class="label">Docs:</span> None</span>
+                    <% } %>
+                  </td>
+
+                  <td>
+                    <% if ((model.photos_count || 0) > 0) { %>
+                      <span><%= model.photos_count %> photo(s)</span>
+                    <% } else { %>
+                      <span class="field-help">No photos</span>
+                    <% } %>
+                  </td>
+
+                  <td>
+                    <% if (model.release_status === 'Signed') { %>
+                      <span class="status-pill ok"><span class="label">Release:</span> Signed</span>
+                    <% } else { %>
+                      <span class="status-pill pending"><span class="label">Release:</span> Not signed</span>
+                    <% } %>
+                  </td>
+
+                  <td>
+                    <% if (model.consent_status === 'Saved') { %>
+                      <span class="status-pill ok"><span class="label">Consent:</span> Saved</span>
+                    <% } else { %>
+                      <span class="status-pill pending"><span class="label">Consent:</span> Not completed</span>
+                    <% } %>
+                  </td>
+
+                  <td>
+                    <% if (model.w9_status === 'Uploaded') { %>
+                      <span class="status-pill ok"><span class="label">W-9:</span> On file</span>
+                    <% } else { %>
+                      <span class="status-pill missing"><span class="label">W-9:</span> None</span>
+                    <% } %>
+                  </td>
+
+                  <td style="min-width: 180px;">
+                    <form action="/studio-panel/models/<%= model.id %>/status" method="POST" style="display:flex; gap:8px; align-items:center;">
+                      <select name="status" class="input" style="padding:0.35rem 0.5rem;">
+                        <option value="pending" <%= model.status === 'pending' ? 'selected' : '' %>>Pending</option>
+                        <option value="approved" <%= model.status === 'approved' ? 'selected' : '' %>>Approved</option>
+                        <option value="disabled" <%= model.status === 'disabled' ? 'selected' : '' %>>Disabled</option>
+                      </select>
+                      <button type="submit" class="btn primary" style="padding:0.35rem 0.7rem;font-size:0.8rem;">
+                        Update
+                      </button>
+                    </form>
+                    <div style="font-size:0.75rem;color:#9aa0b5;margin-top:6px;">
+                      Approving allows model login.
+                    </div>
+                  </td>
+
+                  <td>
+                    <a class="btn secondary" href="/studio-panel/models/<%= model.id %>">
+                      View / Inspect
+                    </a>
+                  </td>
+                </tr>
+              <% }); %>
+            <% } else { %>
+              <tr>
+                <td colspan="10"><p>No models found.</p></td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,661 @@
+/* ==============
+   GLOBAL RESET
+   ============== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+/* ==============
+   BASE / GLOBAL
+   ============== */
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: radial-gradient(circle at top, #1a1a24 0, #050509 55%, #000 100%);
+  color: #f5f5f7;
+  line-height: 1.6;
+}
+
+/* Make sure text & headings are readable on dark backgrounds */
+h1, h2, h3, h4, h5, h6 {
+  color: #f9fafb;
+}
+
+/* Default link styling – so “View / Download” etc. are visible */
+a {
+  color: #f5b742;
+  text-decoration: none;
+}
+
+a:hover {
+  color: #ffd16f;
+  text-decoration: underline;
+}
+
+/* Layout helper for main content */
+.page-wrapper,
+.home main,
+.model-portal,
+.legal-page main {
+  max-width: 1100px;
+  margin: 1.8rem auto;
+  padding: 0 1.5rem;
+}
+
+/* ==============
+   BRANDING HEADER
+   ============== */
+
+/* Header bar */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #050509;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Inner container */
+.site-header-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0.5rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Brand logo + text link */
+.brand-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  text-decoration: none;
+}
+
+/* Circular logo mark */
+.brand-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle, #ffb347 0%, #ff8a00 40%, #1a1a1f 100%);
+  box-shadow: 0 0 10px rgba(255, 166, 0, 0.35);
+}
+
+/* Ensure header icon is not huge */
+.site-header .brand-mark {
+  width: 28px;
+  height: 28px;
+}
+
+.site-header .brand-mark img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+/* Safety clamp for any raw <img> inside header */
+.site-header img {
+  max-height: 32px;
+  width: auto;
+}
+
+/* Brand text next to logo */
+.brand-text {
+  font-size: 0.9rem;
+  letter-spacing: 0.18em;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #f9f9fb;
+}
+
+/* NAV */
+.main-nav {
+  display: flex;
+  gap: 1.25rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+.main-nav a {
+  color: #d4d4dd;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  padding-bottom: 0.1rem;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.main-nav a:hover {
+  color: #ffb347;
+  border-color: rgba(255, 179, 71, 0.6);
+}
+
+.main-nav a.active {
+  color: #ffb347;
+  border-color: #ffb347;
+}
+
+/* ==============
+   HERO / LANDING
+   ============== */
+
+/* Hero container (used on home page / landing) */
+.hero {
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(circle at top left, rgba(245, 183, 66, 0.16), transparent 55%),
+              radial-gradient(circle at top right, rgba(120, 120, 255, 0.18), transparent 50%),
+              rgba(10, 10, 18, 0.98);
+  border-radius: 24px;
+  padding: 2.3rem 2rem;
+  border: 1px solid rgba(245, 183, 66, 0.4);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+  margin-bottom: 2.5rem;
+}
+
+/* Big faint logo behind hero content */
+/* ===== HERO LOGO WATERMARK ===== */
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(245, 183, 66, 0.16), transparent 55%),
+    radial-gradient(circle at top right, rgba(120, 120, 255, 0.18), transparent 50%),
+    rgba(10, 10, 18, 0.98);
+  border-radius: 24px;
+  padding: 1.6rem 2rem;            /* shorter vertically */
+  border: 1px solid rgba(245, 183, 66, 0.4);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+  margin-bottom: 2rem;
+
+  /* center content vertically in the block */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;         /* keep text left-aligned */
+  min-height: 220px;               /* enough space but not huge */
+}
+
+/* big faint logo covering the whole hero block */
+.hero-logo-bg {
+  position: absolute;
+  inset: 0;                        /* fill entire hero */
+  background: url("/img/lumennyx-mark.png") no-repeat center;
+  background-size: 60%;            /* adjust for how big you want it */
+  opacity: 0.05;                   /* very subtle */
+  filter: blur(0.4px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* make sure hero text/buttons sit above background logo */
+.hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.hero h2 {
+  font-size: 1.8rem;
+  margin-bottom: 0.75rem;
+}
+
+.hero p {
+  max-width: 640px;
+  color: #d5d5e0;
+  margin-bottom: 1.25rem;
+}
+
+.hero-buttons {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.hero-note {
+  font-size: 0.85rem;
+  color: #9e9eb5;
+}
+
+
+/* Sections on home / legal / portal pages */
+.home section,
+.legal-page .legal-section,
+.model-portal .portal-section {
+  background: rgba(10, 10, 18, 0.96);
+  border-radius: 18px;
+  padding: 1.6rem 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.65);
+  margin-bottom: 1.8rem;
+}
+
+.home h3,
+.legal-page h2,
+.legal-page h3,
+.portal-section h3 {
+  margin-bottom: 0.75rem;
+  font-size: 1.15rem;
+}
+
+/* Lists */
+ul {
+  margin-left: 1.1rem;
+  margin-top: 0.3rem;
+}
+
+ul li {
+  margin-bottom: 0.25rem;
+}
+
+/* ==============
+   BUTTONS
+   ============== */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1.4rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.95rem;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.1s ease;
+  gap: 0.35rem;
+}
+
+.btn.primary {
+  background: linear-gradient(135deg, #f5b742, #c9861c);
+  color: #050509;
+  font-weight: 600;
+  box-shadow: 0 0 24px rgba(245, 183, 66, 0.25);
+}
+
+.btn.primary:hover {
+  background: linear-gradient(135deg, #ffd16f, #f5b742);
+  transform: translateY(-1px);
+}
+
+.btn.secondary {
+  background: transparent;
+  border-color: rgba(245, 183, 66, 0.6);
+  color: #f5b742;
+}
+
+.btn.secondary:hover {
+  background: rgba(245, 183, 66, 0.08);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ==============
+   ALERTS / BADGES
+   ============== */
+
+.alert {
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  margin: 0.8rem 0;
+  font-size: 0.9rem;
+}
+
+.alert.success {
+  background: rgba(0, 166, 91, 0.08);
+  border: 1px solid rgba(0, 166, 91, 0.6);
+  color: #aef7c5;
+}
+
+.alert.error {
+  background: rgba(200, 40, 40, 0.12);
+  border: 1px solid rgba(226, 73, 73, 0.75);
+  color: #ffb3b3;
+}
+
+/* Status pills (model profile top row) */
+.status-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.9rem;
+}
+
+.status-pill {
+  font-size: 0.8rem;
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.status-pill span.label {
+  color: #9c9cb3;
+}
+
+.status-pill.ok {
+  border-color: rgba(0, 200, 120, 0.8);
+  background: rgba(0, 200, 120, 0.1);
+  color: #c5ffe0;
+}
+
+.status-pill.pending {
+  border-color: rgba(245, 183, 66, 0.8);
+  background: rgba(245, 183, 66, 0.07);
+  color: #ffeabb;
+}
+
+.status-pill.missing {
+  border-color: rgba(220, 65, 65, 0.8);
+  background: rgba(220, 65, 65, 0.1);
+  color: #ffd0d0;
+}
+
+/* ==============
+   AUTH PAGES
+   ============== */
+
+.auth-page {
+  /* Auth pages use the normal header + centered content layout.
+     We keep body in normal block flow so the header spans full width
+     and the auth cards sit inside .page-wrapper below it. */
+}
+
+
+.auth-card {
+  background: rgba(10, 10, 18, 0.97);
+  padding: 2rem 2rem 1.8rem 2rem;
+  border-radius: 20px;
+  border: 1px solid rgba(245, 183, 66, 0.35);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.85);
+  max-width: 4640px;
+  width: 100%;
+  margin-top: 2.5rem;
+}
+
+.auth-card h2 {
+  font-size: 1.45rem;
+  margin-bottom: 0.4rem;
+}
+
+.auth-subtext {
+  font-size: 0.9rem;
+  color: #a0a0b8;
+  margin-bottom: 0.9rem;
+}
+
+.auth-form label {
+  display: block;
+  font-size: 0.88rem;
+  margin-bottom: 0.8rem;
+}
+
+.auth-form input[type="text"],
+.auth-form input[type="password"],
+.auth-form input[type="email"] {
+  width: 100%;
+  margin-top: 0.25rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(5, 5, 10, 0.9);
+  color: #f5f5f7;
+}
+
+.auth-form input:focus {
+  outline: none;
+  border-color: rgba(245, 183, 66, 0.9);
+  box-shadow: 0 0 0 1px rgba(245, 183, 66, 0.6);
+}
+
+.auth-footer {
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  color: #b2b2c6;
+}
+
+.auth-footer .btn {
+  margin-top: 0.35rem;
+}
+
+.auth-note {
+  margin-top: 0.9rem;
+  font-size: 0.78rem;
+  color: #8686a0;
+}
+
+/* ==============
+   FORMS (GENERAL)
+   ============== */
+
+.portal-form label,
+.portal-form .checkbox-label {
+  display: block;
+  font-size: 0.9rem;
+  margin-bottom: 0.8rem;
+}
+
+.portal-form input[type="text"],
+.portal-form input[type="email"],
+.portal-form input[type="tel"],
+.portal-form input[type="date"],
+.portal-form input[type="file"],
+.portal-form select,
+.portal-form textarea {
+  width: 100%;
+  margin-top: 0.25rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(5, 5, 10, 0.9);
+  color: #f5f5f7;
+  font-size: 0.9rem;
+}
+
+.portal-form textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+
+.portal-form input:focus,
+.portal-form select:focus,
+.portal-form textarea:focus {
+  outline: none;
+  border-color: rgba(245, 183, 66, 0.9);
+  box-shadow: 0 0 0 1px rgba(245, 183, 66, 0.4);
+}
+
+.portal-form fieldset {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 1.1rem 1rem 1rem 1rem;
+  margin-bottom: 1.1rem;
+}
+
+.portal-form legend {
+  font-size: 0.85rem;
+  padding: 0 0.4rem;
+  color: #f5b742;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* Checkboxes */
+.checkbox-label input[type="checkbox"] {
+  width: auto;
+  display: inline-block;
+  margin-right: 0.4rem;
+}
+
+/* Help text */
+.field-help {
+  font-size: 0.8rem;
+  color: #9797af;
+  margin-top: 0.3rem;
+}
+
+/* ==============
+   MODEL PORTAL
+   ============== */
+
+.model-portal .portal-header {
+  margin-bottom: 1.5rem;
+}
+
+.portal-header h2 {
+  font-size: 1.6rem;
+  margin-bottom: 0.4rem;
+}
+
+.portal-note {
+  font-size: 0.9rem;
+  color: #aaaac6;
+}
+
+/* Documents table */
+.documents-list table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.8rem;
+  font-size: 0.85rem;
+}
+
+.documents-list th,
+.documents-list td {
+  padding: 0.45rem 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.documents-list th {
+  text-align: left;
+  color: #c0c0d5;
+  font-weight: 500;
+}
+
+.documents-list tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Release box */
+.release-box {
+  background: radial-gradient(circle at top, rgba(245, 183, 66, 0.16), rgba(10, 10, 18, 0.96));
+  border-radius: 16px;
+  padding: 1.2rem 1.1rem;
+  border: 1px solid rgba(245, 183, 66, 0.55);
+}
+
+.release-text {
+  font-size: 0.9rem;
+  color: #dddde9;
+  margin-bottom: 0.9rem;
+}
+
+.release-status p {
+  font-size: 0.86rem;
+}
+
+/* Policies section */
+.policies-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.policies-card {
+  background: rgba(5, 5, 12, 0.92);
+  border-radius: 14px;
+  padding: 0.9rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.86rem;
+}
+
+.policies-card h4 {
+  font-size: 0.9rem;
+  margin-bottom: 0.3rem;
+  color: #f5b742;
+}
+
+/* ==============
+   LEGAL PAGE
+   ============== */
+
+.legal-page .legal-section p,
+.legal-page .legal-section li {
+  font-size: 0.92rem;
+}
+
+/* ==============
+   ADMIN / COMPLIANCE SUMMARY
+   ============== */
+
+.compliance-summary {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: rgba(10, 10, 18, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.9rem;
+}
+
+.policy-list .ok {
+  color: #3cd68c;
+}
+
+.policy-list .missing {
+  color: #ff9f9f;
+}
+
+.admin-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* ==============
+   RESPONSIVE
+   ============== */
+
+@media (max-width: 720px) {
+  .site-header-inner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.65rem;
+  }
+
+  .main-nav {
+    flex-wrap: wrap;
+    gap: 0.8rem;
+  }
+
+  .hero {
+    padding: 1.8rem 1.4rem;
+  }
+
+  .auth-card {
+    margin-top: 1.5rem;
+  }
+}
+.page-wrapper {
+  max-width: 1100px;
+  margin: 2rem auto 3rem;
+  padding: 0 1.5rem;
+}
