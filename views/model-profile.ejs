@@ -77,6 +77,57 @@
       </div>
     </section>
 
+    <!-- ✅ NEW: AGENCY / INDEPENDENT PATH CLARIFICATION (ADD-ONLY) -->
+    <section class="portal-section no-print">
+      <h3>Working With Agencies &amp; Independent Talent</h3>
+      <p class="portal-note" style="margin-bottom:0.6rem;">
+        We work with both represented talent (via agencies/managers) and independent performers.
+        Compliance standards are the same for all shoots. Process timing differs slightly depending on representation.
+      </p>
+
+      <div class="documents-list" style="margin-top:0.6rem;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:33%;">For Agencies / Booking Representatives</th>
+              <th style="width:33%;">For Independent Talent</th>
+              <th style="width:34%;">Timing &amp; Documentation</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <ul style="margin:0; padding-left:1.1rem;">
+                  <li>We coordinate bookings directly with agencies or managers.</li>
+                  <li>Call sheets, scope, rates, and boundaries confirmed in advance.</li>
+                  <li>Payment and paperwork handled per agency preference.</li>
+                </ul>
+              </td>
+              <td>
+                <ul style="margin:0; padding-left:1.1rem;">
+                  <li>Initial conversation first (scope, rate, boundaries).</li>
+                  <li>Mutual agreement confirmed in writing.</li>
+                  <li>No paperwork required just to ask questions or inquire.</li>
+                </ul>
+              </td>
+              <td>
+                <ul style="margin:0; padding-left:1.1rem;">
+                  <li>All age verification and consent documentation is completed <strong>after booking terms are agreed upon</strong>, and <strong>prior to any filming</strong>.</li>
+                  <li>Compliance records are stored securely and are not publicly accessible.</li>
+                </ul>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="field-help" style="margin-top:0.75rem;">
+        This portal supports professional workflows and intentionally controlled access. If you are represented,
+        your booking representative may prefer to handle certain confirmations externally before portal completion.
+      </p>
+    </section>
+    <!-- END NEW BLOCK -->
+
     <!-- FLASH MESSAGES -->
     <% if (message) { %>
       <div class="alert success no-print"><%= message %></div>
@@ -121,6 +172,12 @@
       <p class="portal-note">
         This information must match your government ID for age verification and record-keeping.
         It is stored securely and used for internal compliance, scheduling, and payments.
+      </p>
+
+      <!-- ✅ NEW: TIMING REASSURANCE (ADD-ONLY) -->
+      <p class="field-help" style="margin-top:0.4rem;">
+        If you are represented, booking terms are typically confirmed through your agency first.
+        Any required verification and releases are completed securely <strong>after agreement</strong> and <strong>before filming</strong>.
       </p>
 
       <form action="/model/profile/basic" method="POST" class="portal-form">
@@ -237,6 +294,12 @@
       <p class="portal-note">
         Upload legible scans or photos of IDs and paperwork. Files are stored securely
         for lawful compliance and record-keeping.
+      </p>
+
+      <!-- ✅ NEW: COMPLIANCE TIMING SENTENCE (ADD-ONLY) -->
+      <p class="field-help" style="margin-top:0.4rem;">
+        All age verification and consent documentation is completed <strong>after booking terms are agreed upon</strong>,
+        and <strong>prior to any filming</strong>, in line with agency and legal requirements.
       </p>
 
       <% if (documents && documents.length > 0) { %>
