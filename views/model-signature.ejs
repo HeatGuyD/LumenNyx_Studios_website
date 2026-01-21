@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Signature Setup – LumenNyx Portal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/" class="brand-link">
+        <span class="brand-text">LUMENNYX STUDIOS</span>
+      </a>
+      <nav class="main-nav">
+        <a href="/model/profile">Profile</a>
+        <a href="/model/release">Release</a>
+        <a href="/logout">Logout</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container" style="max-width: 980px;">
+    <h1>Signature Setup</h1>
+    <p class="muted">
+      You can sign either by typing your name (rendered as a signature-style image) or by drawing your signature.
+      Your signature is stored and applied to documents you sign in the portal.
+    </p>
+
+    <% if (signature) { %>
+      <div class="notice success">
+        A signature is already on file (created <%= signature.created_at %>). You can replace it below.
+      </div>
+    <% } %>
+
+    <form id="sigForm" action="/model/signature" method="POST" class="card">
+      <input type="hidden" name="method" id="method" value="typed" />
+      <input type="hidden" name="typed_style" id="typed_style" value="style1" />
+      <input type="hidden" name="signature_data_url" id="signature_data_url" />
+      <input type="hidden" name="initials_data_url" id="initials_data_url" />
+
+      <div class="tabs">
+        <button type="button" class="tab active" data-tab="typed">Type signature</button>
+        <button type="button" class="tab" data-tab="draw">Draw signature</button>
+      </div>
+
+      <section id="tab-typed" class="tab-panel active">
+        <label>
+          Legal name (required)
+          <input type="text" name="typed_name" id="typed_name" placeholder="First Last" required />
+        </label>
+
+        <div style="margin-top: 12px;">
+          <div class="muted" style="margin-bottom: 8px;">Choose a style:</div>
+          <div class="sig-style-row">
+            <button type="button" class="sig-style active" data-style="style1" style="font-family: 'Brush Script MT', 'Segoe Script', cursive;">Signature Style 1</button>
+            <button type="button" class="sig-style" data-style="style2" style="font-family: 'Segoe Script', 'Lucida Handwriting', cursive;">Signature Style 2</button>
+            <button type="button" class="sig-style" data-style="style3" style="font-family: 'Lucida Handwriting', 'Comic Sans MS', cursive;">Signature Style 3</button>
+          </div>
+        </div>
+
+        <div class="sig-preview">
+          <canvas id="typedCanvas" width="900" height="220"></canvas>
+        </div>
+
+        <div class="muted" style="margin-top: 10px;">
+          Initials will be generated automatically from your name.
+        </div>
+      </section>
+
+      <section id="tab-draw" class="tab-panel">
+        <div class="muted" style="margin-bottom: 8px;">Draw your signature in the box below.</div>
+        <div class="sig-preview">
+          <canvas id="drawCanvas" width="900" height="220"></canvas>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top: 10px;">
+          <button type="button" class="btn" id="clearDraw">Clear</button>
+          <button type="button" class="btn" id="useDrawAsInitials">Use drawn initials box</button>
+        </div>
+        <div class="muted" style="margin-top: 10px;">
+          If you click “Use drawn initials box”, you can draw initials separately (optional). Otherwise, initials are omitted.
+        </div>
+
+        <div id="initialsBoxWrap" style="display:none; margin-top: 14px;">
+          <div class="muted" style="margin-bottom: 8px;">Draw initials:</div>
+          <div class="sig-preview">
+            <canvas id="initialsCanvas" width="450" height="180"></canvas>
+          </div>
+          <button type="button" class="btn" id="clearInitials" style="margin-top: 10px;">Clear initials</button>
+        </div>
+      </section>
+
+      <div style="display:flex; gap:12px; margin-top: 16px; justify-content:flex-end;">
+        <a class="btn secondary" href="/model/profile">Cancel</a>
+        <button class="btn primary" type="submit">Save signature</button>
+      </div>
+    </form>
+  </main>
+
+  <script src="/js/signature.js"></script>
+</body>
+</html>

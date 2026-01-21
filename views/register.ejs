@@ -70,7 +70,7 @@
         <div class="alert error"><%= error %></div>
       <% } %>
 
-      <form action="/register" method="POST" class="auth-form">
+      <form action="/register" method="POST" enctype="multipart/form-data" class="auth-form">
         <label>
           Username
           <input
@@ -102,7 +102,42 @@
             required
             minlength="8"
           />
-        </label>
+        
+        <fieldset class="auth-fieldset">
+          <legend>Applicant Info (helps us vet you faster)</legend>
+
+          <label>
+            Headshot (recommended)
+            <input type="file" name="headshot" accept="image/*" />
+          </label>
+
+          <label>
+            Full-body photo (recommended)
+            <input type="file" name="fullbody" accept="image/*" />
+          </label>
+
+          <label>
+            Portfolio / Link (optional)
+            <input type="url" name="portfolio_url" placeholder="https://..." />
+          </label>
+
+          <label>
+            Experience level (optional)
+            <select name="experience_level">
+              <option value="">Select…</option>
+              <option value="new">New</option>
+              <option value="some">Some experience</option>
+              <option value="pro">Professional</option>
+            </select>
+          </label>
+
+          <label>
+            Short bio / notes (optional)
+            <textarea name="bio" rows="4" placeholder="Anything you want the studio to know for initial vetting."></textarea>
+          </label>
+        </fieldset>
+
+</label>
 
         <p class="field-help" style="margin-top:0.35rem;">
           Passwords should be at least 8 characters. Never share your password with anyone.

@@ -250,6 +250,38 @@ db.serialize(async () => {
     )
   `);
 
+  
+    
+  // ---- Signatures (typed-styled or drawn) ----
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS signatures (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      method TEXT NOT NULL,                 -- 'typed' or 'drawn'
+      typed_name TEXT,                      -- legal name used when method='typed'
+      typed_style TEXT,                     -- style key, e.g. 'style1'
+      signature_png TEXT NOT NULL,          -- relative path under uploads/signatures
+      initials_png TEXT,                    -- optional relative path
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      ip_address TEXT,
+      user_agent TEXT,
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    )
+  `);
+
+  // Link releases to signatures (non-breaking migration)
+  await ensureColumn("master_releases", "signature_id INTEGER");
+  await ensureColumn("master_releases", "signature_method TEXT");
+  await ensureColumn("master_releases", "signature_png TEXT");
+
+  // Expand model_profiles for applicant vetting (non-breaking)
+  await ensureColumn("model_profiles", "fullbody_path TEXT");
+  await ensureColumn("model_profiles", "portfolio_url TEXT");
+  await ensureColumn("model_profiles", "bio TEXT");
+  await ensureColumn("model_profiles", "experience_level TEXT");
+  await ensureColumn("model_profiles", "application_submitted_at DATETIME");
+  await ensureColumn("model_profiles", "admin_notes TEXT");
+
   await dbRun(`
     CREATE TABLE IF NOT EXISTS consent_policies (
       user_id INTEGER PRIMARY KEY,
@@ -276,6 +308,12 @@ db.serialize(async () => {
     )
   `);
 
+
+    
+    // Migrate consent_policies for portal-first scene limits
+  await ensureColumn("consent_policies", "consent_json TEXT");
+  await ensureColumn("consent_policies", "consent_version TEXT");
+
   await dbRun(`
     CREATE TABLE IF NOT EXISTS scenes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -286,6 +324,7 @@ db.serialize(async () => {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
 
   await dbRun(`
     CREATE TABLE IF NOT EXISTS scene_models (
@@ -343,8 +382,9 @@ const idUploadsDir = path.join(uploadsRoot, 'ids');
 const docUploadsDir = path.join(uploadsRoot, 'docs');
 const photoUploadsDir = path.join(uploadsRoot, 'photos');
 const sceneUploadsDir = path.join(uploadsRoot, 'scenes');
+const signatureUploadsDir = path.join(uploadsRoot, 'signatures');
 
-for (const dir of [uploadsRoot, idUploadsDir, docUploadsDir, photoUploadsDir, sceneUploadsDir]) {
+for (const dir of [uploadsRoot, idUploadsDir, docUploadsDir, photoUploadsDir, sceneUploadsDir, signatureUploadsDir]) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
@@ -492,6 +532,25 @@ app.get('/uploads/photos/:filename', ensureAgeConfirmed, ensureLoggedIn, async (
 });
 
 // Scenes: admin/staff only
+
+app.get('/uploads/signatures/:filename', ensureAgeConfirmed, ensureLoggedIn, async (req, res) => {
+  const filename = sanitizeFilename(req.params.filename);
+  try {
+    const owner = await dbGet(
+      `SELECT user_id FROM signatures WHERE signature_png = ? OR initials_png = ? LIMIT 1`,
+      [filename, filename]
+    );
+    if (!owner) return res.status(404).send('Not found');
+    const allowed = await canAccessUserFile(req, owner.user_id);
+    if (!allowed) return res.status(403).send('Forbidden');
+    return res.sendFile(path.join(signatureUploadsDir, filename));
+  } catch (err) {
+    console.error('Signature serve error:', err);
+    return res.status(500).send('Server error');
+  }
+});
+
+
 app.get('/uploads/scenes/:filename', ensureAdmin, async (req, res) => {
   const filename = sanitizeFilename(req.params.filename);
   try {
@@ -585,45 +644,70 @@ app.post('/login', ensureAgeConfirmed, async (req, res) => {
 
 app.get('/register', ensureAgeConfirmed, (req, res) => res.render('register'));
 
-app.post('/register', ensureAgeConfirmed, async (req, res) => {
-  const { username, password, email } = req.body;
-  const normalizedUsername = (username || '').trim();
-  const normalizedEmail = (email || '').trim();
+app.post(
+  '/register',
+  ensureAgeConfirmed,
+  uploadPhoto.fields([
+    { name: 'headshot', maxCount: 1 },
+    { name: 'fullbody', maxCount: 1 },
+  ]),
+  async (req, res) => {
+    const { username, password, email, portfolio_url, bio, experience_level } = req.body;
+    const normalizedUsername = (username || '').trim();
+    const normalizedEmail = (email || '').trim();
 
-  if (!normalizedUsername || !password) {
-    req.session.error = 'Username and password are required.';
-    return res.redirect('/register');
-  }
-
-  if (equalsIgnoreCase(normalizedUsername, ADMIN_USERNAME)) {
-    req.session.error = 'That username is not available.';
-    return res.redirect('/register');
-  }
-
-  try {
-    const existing = await dbGet('SELECT id FROM users WHERE LOWER(username) = LOWER(?)', [normalizedUsername]);
-    if (existing) {
-      req.session.error = 'That username is already taken.';
+    if (!normalizedUsername || !password) {
+      req.session.error = 'Username and password are required.';
       return res.redirect('/register');
     }
 
-    const hash = await bcrypt.hash(String(password), 12);
+    if (equalsIgnoreCase(normalizedUsername, ADMIN_USERNAME)) {
+      req.session.error = 'That username is not available.';
+      return res.redirect('/register');
+    }
 
-    await dbRun(
-      `INSERT INTO users (username, password_hash, email, role, status)
-       VALUES (?, ?, ?, 'model', 'pending')`,
-      [normalizedUsername, hash, normalizedEmail]
-    );
+    // Optional vetting assets
+    const headshotFile = req.files?.headshot?.[0];
+    const fullbodyFile = req.files?.fullbody?.[0];
+    const headshotPath = headshotFile ? headshotFile.filename : null;
+    const fullbodyPath = fullbodyFile ? fullbodyFile.filename : null;
 
-    req.session.message =
-      'Account created. Your model profile is pending review. You may log in to complete your paperwork.';
-    return res.redirect('/login');
-  } catch (err) {
-    console.error('Register error:', err);
-    req.session.error = 'Could not create account. Please try again.';
-    return res.redirect('/register');
+    try {
+      const hash = await bcrypt.hash(password, 10);
+
+      const stmt = await dbRun(
+        `INSERT INTO users (username, password_hash, email, role, status)
+         VALUES (?, ?, ?, 'model', 'pending')`,
+        [normalizedUsername, hash, normalizedEmail]
+      );
+      const newUserId = stmt.lastID;
+
+      // Create (or update) the model profile immediately so admin can vet before approval.
+      await dbRun(
+        `INSERT INTO model_profiles (user_id, email, headshot_path, fullbody_path, portfolio_url, bio, experience_level, application_submitted_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+         `,
+        [
+          newUserId,
+          normalizedEmail || null,
+          headshotPath,
+          fullbodyPath,
+          (portfolio_url || '').trim() || null,
+          (bio || '').trim() || null,
+          (experience_level || '').trim() || null,
+        ]
+      );
+
+      req.session.message =
+        'Application submitted. Your profile is pending review. You may log in to complete any additional details, but you will not be fully approved until the studio reviews your application.';
+      return res.redirect('/login');
+    } catch (err) {
+      console.error('Register error:', err);
+      req.session.error = 'Could not create account. Please try again.';
+      return res.redirect('/register');
+    }
   }
-});
+);
 
 // Logout
 function doLogout(req, res) {
@@ -684,6 +768,75 @@ app.get('/model/profile', ensureModel, async (req, res) => {
   res.render('model-profile', { profile, documents, photos, masterRelease, policies });
 });
 
+
+// ----------------------
+// SIGNATURE SETUP (Hybrid: typed-styled + drawn)
+// ----------------------
+app.get('/model/signature', ensureModel, async (req, res) => {
+  const userId = req.session.user.id;
+  const sig = await dbGet(
+    `SELECT * FROM signatures WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`,
+    [userId]
+  );
+  res.render('model-signature', { signature: sig });
+});
+
+app.post('/model/signature', ensureModel, async (req, res) => {
+  const userId = req.session.user.id;
+  const { method, typed_name, typed_style, signature_data_url, initials_data_url } = req.body;
+
+  if (!method || !signature_data_url) {
+    req.session.error = 'Please provide a signature.';
+    return res.redirect('/model/signature');
+  }
+
+  const ua = req.headers['user-agent'] || '';
+  const ip = getClientIp(req);
+
+  function saveDataUrlPng(dataUrl, prefix) {
+    const m = String(dataUrl || '').match(/^data:image\/png;base64,(.+)$/);
+    if (!m) return null;
+    const buf = Buffer.from(m[1], 'base64');
+    const name = `${Date.now()}_${Math.random().toString(36).slice(2)}_${prefix}.png`;
+    const fullPath = path.join(signatureUploadsDir, name);
+    fs.writeFileSync(fullPath, buf);
+    return name; // store filename only
+  }
+
+  try {
+    const sigFile = saveDataUrlPng(signature_data_url, 'sig');
+    const initFile = initials_data_url ? saveDataUrlPng(initials_data_url, 'init') : null;
+
+    if (!sigFile) {
+      req.session.error = 'Signature format not recognized. Please try again.';
+      return res.redirect('/model/signature');
+    }
+
+    await dbRun(
+      `INSERT INTO signatures (user_id, method, typed_name, typed_style, signature_png, initials_png, ip_address, user_agent)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        userId,
+        String(method),
+        (typed_name || '').trim() || null,
+        (typed_style || '').trim() || null,
+        sigFile,
+        initFile,
+        ip,
+        ua,
+      ]
+    );
+
+    req.session.message = 'Signature saved.';
+    return res.redirect('/model/profile');
+  } catch (err) {
+    console.error('Signature save error:', err);
+    req.session.error = 'Could not save signature.';
+    return res.redirect('/model/signature');
+  }
+});
+
+
 app.get('/model/release', ensureModel, async (req, res) => {
   const userId = req.session.user.id;
   const { profile, masterRelease } = await loadModelProfile(userId);
@@ -695,16 +848,39 @@ app.post('/model/release', ensureModel, async (req, res) => {
   const userId = req.session.user.id;
   const { agree_master_release, signed_name } = req.body;
 
-  if (!agree_master_release || !signed_name || !String(signed_name).trim()) {
-    req.session.error = 'You must check the box and type your full legal name to sign.';
+  if (!agree_master_release) {
+    req.session.error = 'You must agree before signing.';
+    return res.redirect('/model/release');
+  }
+
+  const name = (signed_name || '').trim();
+  if (!name) {
+    req.session.error = 'Please type your full legal name.';
     return res.redirect('/model/release');
   }
 
   try {
+    const sig = await dbGet(
+      `SELECT * FROM signatures WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`,
+      [userId]
+    );
+    if (!sig) {
+      req.session.error = 'Please set up your signature before signing.';
+      return res.redirect('/model/signature');
+    }
+
     await dbRun(
-      `INSERT INTO master_releases (user_id, signed_name, ip_address, user_agent)
-       VALUES (?, ?, ?, ?)`,
-      [userId, String(signed_name).trim(), getClientIp(req), req.headers['user-agent'] || '']
+      `INSERT INTO master_releases (user_id, signed_name, ip_address, user_agent, signature_id, signature_method, signature_png)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        userId,
+        name,
+        getClientIp(req),
+        req.headers['user-agent'] || '',
+        sig.id,
+        sig.method,
+        sig.signature_png,
+      ]
     );
 
     req.session.message = 'Master release signed and saved.';
@@ -715,6 +891,7 @@ app.post('/model/release', ensureModel, async (req, res) => {
     return res.redirect('/model/release');
   }
 });
+
 
 // Backwards-compat
 app.get('/model/profile/release', ensureModel, (req, res) => res.redirect('/model/release'));
@@ -990,6 +1167,14 @@ app.post('/model/profile/policies', ensureModel, async (req, res) => {
       ]
     );
 
+
+    // Portal-first: store full payload in JSON (prevents PDF checkbox glyph issues)
+    const consentJson = JSON.stringify(payload);
+    await dbRun(
+      `UPDATE consent_policies SET consent_json = ?, consent_version = ? WHERE user_id = ?`,
+      [consentJson, 'v1.0-2026-01-20', userId]
+    );
+
     req.session.message = 'Safety & consent settings saved.';
     res.redirect('/model/profile#safety');
   } catch (err) {
@@ -1068,6 +1253,62 @@ app.get('/studio-panel/models', ensureAdmin, async (req, res) => {
     res.redirect('/studio-panel');
   }
 });
+
+// ----------------------
+// ADMIN: Documentation Map (what's required / missing per model)
+// ----------------------
+app.get('/studio-panel/docs', ensureAdmin, async (req, res) => {
+  try {
+    const models = await dbAll(
+      `SELECT u.id, u.username, u.email, u.status, u.created_at,
+              mp.headshot_path, mp.fullbody_path, mp.portfolio_url, mp.experience_level, mp.application_submitted_at
+       FROM users u
+       LEFT JOIN model_profiles mp ON mp.user_id = u.id
+       WHERE u.role='model'
+       ORDER BY COALESCE(mp.application_submitted_at, u.created_at) DESC`
+    );
+
+    const rows = [];
+    for (const m of models) {
+      const docs = await dbAll(
+        `SELECT doc_type, filename, uploaded_at
+         FROM compliance_documents
+         WHERE user_id = ?
+         ORDER BY uploaded_at DESC`,
+        [m.id]
+      );
+
+      const has = (type) => docs.some((d) => d.doc_type === type);
+      const hasAny = (types) => types.some(has);
+
+      const sig = await dbGet(`SELECT id FROM signatures WHERE user_id=? ORDER BY created_at DESC LIMIT 1`, [m.id]);
+      const mr = await dbGet(`SELECT id FROM master_releases WHERE user_id=? ORDER BY signed_at DESC LIMIT 1`, [m.id]);
+      const consent = await dbGet(`SELECT user_id, consent_json FROM consent_policies WHERE user_id=? LIMIT 1`, [m.id]);
+
+      rows.push({
+        ...m,
+        checklist: {
+          applicantPhotos: Boolean(m.headshot_path || m.fullbody_path),
+          signature: Boolean(sig),
+          masterRelease: Boolean(mr),
+          identity: hasAny(['id_primary_front','id_primary_back','id_secondary','selfie_with_id']),
+          w9: has('w9'),
+          sti: has('sti_test'),
+          consent: Boolean(consent && (consent.consent_json || 0)),
+        },
+        docs,
+      });
+    }
+
+    res.render('studio-docs', { rows });
+  } catch (err) {
+    console.error('Studio docs map error:', err);
+    req.session.error = 'Could not load documentation map.';
+    return res.redirect('/studio-panel');
+  }
+});
+
+
 
 app.get('/studio-panel/models/:id', ensureAdmin, async (req, res) => {
   const userId = parseInt(req.params.id, 10);

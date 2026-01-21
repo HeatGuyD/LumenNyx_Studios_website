@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Studio Docs Map – LumenNyx</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/studio-panel" class="brand-link">
+        <span class="brand-text">LUMENNYX STUDIOS – Studio Panel</span>
+      </a>
+      <nav class="main-nav">
+        <a href="/studio-panel">Dashboard</a>
+        <a href="/studio-panel/models">Models</a>
+        <a href="/studio-panel/docs" class="active">Docs Map</a>
+        <a href="/studio-panel/scenes">Scenes</a>
+        <form action="/logout" method="POST" style="display:inline;">
+          <button class="btn secondary" style="padding:0.25rem 0.9rem;font-size:0.8rem;">Logout</button>
+        </form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container" style="max-width: 1200px;">
+    <h1>Documentation Map</h1>
+    <p class="muted">
+      This view shows what each model has uploaded/signed. Use it to stay audit-ready and to see what’s missing at a glance.
+    </p>
+
+    <div class="table-wrap" style="overflow:auto;">
+      <table class="table" style="width:100%; border-collapse: collapse;">
+        <thead>
+          <tr>
+            <th style="text-align:left; padding:10px;">Model</th>
+            <th style="text-align:left; padding:10px;">Status</th>
+            <th style="text-align:left; padding:10px;">Applicant Photos</th>
+            <th style="text-align:left; padding:10px;">Signature</th>
+            <th style="text-align:left; padding:10px;">Master Release</th>
+            <th style="text-align:left; padding:10px;">ID Pack</th>
+            <th style="text-align:left; padding:10px;">W-9</th>
+            <th style="text-align:left; padding:10px;">STI</th>
+            <th style="text-align:left; padding:10px;">Scene Consent</th>
+            <th style="text-align:left; padding:10px;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% rows.forEach(r => { %>
+            <tr style="border-top:1px solid rgba(255,255,255,0.08);">
+              <td style="padding:10px;">
+                <div style="font-weight:700;"><%= r.username %></div>
+                <div class="muted" style="font-size:0.9rem;"><%= r.email || '' %></div>
+                <% if (r.portfolio_url) { %>
+                  <div style="margin-top:4px;"><a href="<%= r.portfolio_url %>" target="_blank" rel="noreferrer">Portfolio</a></div>
+                <% } %>
+              </td>
+              <td style="padding:10px;"><%= r.status %></td>
+
+              <% function pill(ok){ %>
+                <span style="display:inline-block; padding:4px 8px; border-radius:999px; border:1px solid rgba(255,255,255,0.18); background:<%= ok ? 'rgba(0,180,90,0.12)' : 'rgba(220,60,60,0.12)' %>;">
+                  <%= ok ? 'OK' : 'MISSING' %>
+                </span>
+              <% } %>
+
+              <td style="padding:10px;"><%- pill(r.checklist.applicantPhotos) %></td>
+              <td style="padding:10px;"><%- pill(r.checklist.signature) %></td>
+              <td style="padding:10px;"><%- pill(r.checklist.masterRelease) %></td>
+              <td style="padding:10px;"><%- pill(r.checklist.identity) %></td>
+              <td style="padding:10px;"><%- pill(r.checklist.w9) %></td>
+              <td style="padding:10px;"><%- pill(r.checklist.sti) %></td>
+              <td style="padding:10px;"><%- pill(r.checklist.consent) %></td>
+
+              <td style="padding:10px;">
+                <a class="btn secondary" href="/studio-panel/models/<%= r.id %>">View</a>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>
