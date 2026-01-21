@@ -1,0 +1,17 @@
+﻿# secrets / env
+.env
+*.env
+
+# databases
+database.sqlite
+*.sqlite
+
+# deps
+node_modules/
+
+# user uploads
+uploads/
+
+# backups
+*.bak*
+_server_backups/
