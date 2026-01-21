@@ -500,7 +500,6 @@
           <% } %>
         </div>
 
-        <!-- FIX: post to /model/release (your app.js route), not /model/profile/release -->
         <form action="/model/release" method="POST" class="portal-form" style="margin-top:1rem;">
           <label class="checkbox-label">
             <input type="checkbox" name="agree_master_release" required />
@@ -539,7 +538,6 @@
 
       <div class="print-toolbar no-print">
         <button class="btn secondary" type="button" onclick="window.print()">Print this page</button>
-        <!-- REMOVED per your request: Back to Master Release -->
       </div>
 
       <form action="/model/profile/policies" method="POST" class="portal-form">

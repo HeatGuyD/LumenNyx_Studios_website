@@ -6,12 +6,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/css/style.css">
 </head>
+
 <body class="home">
 
   <!-- Header -->
   <header class="site-header">
     <div class="site-header-inner">
-      <a href="/" class="brand-link">
+      <!-- Use /studio-panel as the “home” for staff, not public "/" -->
+      <a href="/studio-panel" class="brand-link">
         <span class="brand-mark">
           <img src="/img/lumennyx-mark.png" alt="LumenNyx Studios logo">
         </span>
@@ -42,32 +44,85 @@
         and scene records. This area is for <strong>admin / staff</strong> use only.
       </p>
 
+      <%
+        const s = (typeof stats !== 'undefined' && stats) ? stats : {};
+        const totalModels = (typeof s.totalModels !== 'undefined') ? s.totalModels : 0;
+        const pendingModels = (typeof s.pendingModels !== 'undefined') ? s.pendingModels : 0;
+        const approvedModels = (typeof s.approvedModels !== 'undefined') ? s.approvedModels : 0;
+
+        // Optional: show mail/contact config if the server passes them
+        const emails = (typeof CONTACT_EMAILS !== 'undefined' && CONTACT_EMAILS) ? CONTACT_EMAILS : null;
+        const mailToStudio = (typeof MAIL_TO_STUDIO !== 'undefined' && MAIL_TO_STUDIO) ? MAIL_TO_STUDIO : null;
+
+        // Optional: role label fallback
+        const roleLabel = (typeof role !== 'undefined' && role) ? role : 'staff';
+      %>
+
       <div class="status-summary">
         <div class="status-pill ok">
           <span class="label">Total Models</span>
-          <span><%= (stats && typeof stats.totalModels !== 'undefined') ? stats.totalModels : 0 %></span>
+          <span><%= totalModels %></span>
         </div>
         <div class="status-pill pending">
           <span class="label">Pending Review</span>
-          <span><%= (stats && typeof stats.pendingModels !== 'undefined') ? stats.pendingModels : 0 %></span>
+          <span><%= pendingModels %></span>
         </div>
         <div class="status-pill ok">
           <span class="label">Approved Models</span>
-          <span><%= (stats && typeof stats.approvedModels !== 'undefined') ? stats.approvedModels : 0 %></span>
+          <span><%= approvedModels %></span>
         </div>
       </div>
 
       <p class="field-help" style="margin-top:1rem;">
-        You are logged in with <strong><%= role %></strong> privileges.
+        You are logged in with <strong><%= roleLabel %></strong> privileges.
         Only admin/staff can access this panel. All information here is confidential
         and should be treated as private legal/compliance data.
       </p>
+
+      <!-- Optional: Mail/PDF routing visibility (only renders if values are passed) -->
+      <% if (emails || mailToStudio) { %>
+        <div class="panel-inner" style="margin-top: 14px;">
+          <h3 style="margin-top:0;">System Routing</h3>
+          <p class="field-help" style="margin-top:6px;">
+            This section is informational for staff. It shows where compliance PDFs and notices route when email features are used.
+          </p>
+
+          <table class="kv-table">
+            <tr>
+              <th>Studio Archive (MAIL_TO_STUDIO)</th>
+              <td><%= mailToStudio || '—' %></td>
+            </tr>
+            <tr>
+              <th>Releases</th>
+              <td><%= (emails && emails.release) ? emails.release : '—' %></td>
+            </tr>
+            <tr>
+              <th>2257 / Records</th>
+              <td><%= (emails && (emails['2257'] || emails.compliance2257)) ? (emails['2257'] || emails.compliance2257) : '—' %></td>
+            </tr>
+            <tr>
+              <th>Legal</th>
+              <td><%= (emails && emails.legal) ? emails.legal : '—' %></td>
+            </tr>
+            <tr>
+              <th>Support</th>
+              <td><%= (emails && emails.support) ? emails.support : '—' %></td>
+            </tr>
+          </table>
+        </div>
+      <% } %>
 
       <div class="policies-grid" style="margin-top:1.2rem;">
         <div class="policies-card">
           <h4>Model Applications</h4>
           <p>Review new sign-ups, verify ID and releases, and approve or reject accounts.</p>
           <a href="/studio-panel/models" class="btn secondary" style="margin-top:0.5rem;">Manage Models</a>
+        </div>
+
+        <div class="policies-card">
+          <h4>Docs Map</h4>
+          <p>View your internal map of required documents, storage paths, and what’s missing per model.</p>
+          <a href="/studio-panel/docs" class="btn secondary" style="margin-top:0.5rem;">Open Docs Map</a>
         </div>
 
         <div class="policies-card">
@@ -82,6 +137,20 @@
           <a href="/2257" class="btn secondary" style="margin-top:0.5rem;">2257 / Legal Info</a>
         </div>
       </div>
+
+      <div class="panel-inner" style="margin-top: 16px;">
+        <h3 style="margin-top:0;">Quick Actions</h3>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <a class="btn primary" href="/studio-panel/models?status=pending">Review Pending Models</a>
+          <a class="btn secondary" href="/studio-panel/models">All Models</a>
+          <a class="btn secondary" href="/studio-panel/scenes">Scenes</a>
+          <a class="btn secondary" href="/studio-panel/docs">Docs Map</a>
+        </div>
+        <p class="field-help" style="margin-top:10px;">
+          Tip: “Review Pending Models” filters directly to the accounts you need to approve.
+        </p>
+      </div>
+
     </section>
 
   </main>

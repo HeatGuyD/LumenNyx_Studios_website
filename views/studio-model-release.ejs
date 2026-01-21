@@ -2,123 +2,401 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Master Model Release – <%= (profile && profile.legal_name) ? profile.legal_name : (user && user.username ? user.username : 'Model') %></title>
+  <title>
+    Master Model Release – <%= (profile?.legal_name || user?.username || 'Model') %> | LumenNyx Studios
+  </title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Keep your global styles if you want consistent buttons/branding -->
   <link rel="stylesheet" href="/css/style.css" />
+
   <style>
-    body { background:#111; color:#fafafa; }
-    .print-container { max-width: 860px; margin: 2rem auto; background:#181818; padding:2rem; border-radius: 14px; }
-    h1, h2 { text-align:center; margin: 0.25rem 0; }
-    .legal-block { margin:1rem 0; line-height:1.55; font-size:0.95rem; color:#e8e8f2; }
-    .signature-box { margin-top:2rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.12); }
-    .meta-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 1rem; }
-    .meta-grid p { margin: 0.25rem 0; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 0.85rem; }
+    :root {
+      --ink: #111;
+      --muted: #555;
+      --rule: #d7d7df;
+      --soft: #f6f6fb;
+      --paper: #ffffff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      margin: 24px;
+      color: var(--ink);
+      background: var(--paper);
+      line-height: 1.35;
+    }
+
+    .no-print { display: inline-flex; gap: 10px; align-items: center; }
+    .btn {
+      appearance: none;
+      border: 1px solid #c9c9d6;
+      background: #fff;
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn.primary {
+      background: #111;
+      color: #fff;
+      border-color: #111;
+    }
+
+    header {
+      border-bottom: 2px solid var(--rule);
+      padding-bottom: 12px;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-size: 20px;
+      margin: 0 0 6px 0;
+      letter-spacing: 0.2px;
+    }
+    h2 {
+      font-size: 15px;
+      margin: 0;
+      color: #222;
+      font-weight: 650;
+    }
+
+    .meta {
+      font-size: 12.5px;
+      color: var(--muted);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 18px;
+      margin-top: 10px;
+    }
+
+    .badge-row {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .badge {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid #cfcfe1;
+      background: var(--soft);
+      color: #333;
+    }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12.5px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 12px;
+    }
+
+    .card {
+      border: 1px solid var(--rule);
+      border-radius: 12px;
+      padding: 12px;
+      background: #fff;
+    }
+
+    .kv {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .kv th, .kv td {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid #ececf4;
+      vertical-align: top;
+    }
+    .kv th { width: 46%; color: #222; }
+    .kv td { color: #111; }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin: 18px 0 8px 0;
+      padding-top: 10px;
+      border-top: 1px solid var(--rule);
+    }
+
+    .legal p {
+      margin: 10px 0;
+      font-size: 13.5px;
+      color: #111;
+    }
+    .legal .muted {
+      color: var(--muted);
+    }
+
+    .sig-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 10px;
+    }
+
+    .sig-box {
+      border: 1px solid var(--rule);
+      border-radius: 12px;
+      padding: 12px;
+      background: #fff;
+    }
+
+    .sig-image {
+      border: 1px solid #ececf4;
+      border-radius: 10px;
+      padding: 10px;
+      background: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 130px;
+    }
+    .sig-image img {
+      max-width: 100%;
+      max-height: 140px;
+      object-fit: contain;
+    }
+
+    .note {
+      margin-top: 12px;
+      font-size: 12.5px;
+      color: var(--muted);
+      border: 1px dashed #cfcfe1;
+      background: var(--soft);
+      padding: 10px 12px;
+      border-radius: 12px;
+    }
+
     @media print {
-      body { background:#fff; color:#000; }
-      .print-container { background:#fff; color:#000; box-shadow:none; border-radius: 0; }
-      .no-print { display:none; }
-      .legal-block { color:#000; }
+      body { margin: 0.5in; }
+      .no-print { display: none !important; }
+      a { color: inherit; text-decoration: none; }
+      .card, .sig-box { break-inside: avoid; }
+      .badge { background: #fff !important; }
     }
   </style>
 </head>
-<body>
-  <div class="print-container">
-    <div class="no-print" style="text-align:right;">
-      <button class="btn secondary" onclick="window.print()">Print / Save as PDF</button>
-    </div>
 
+<body>
+  <%
+    const CONTACTS = (typeof CONTACT_EMAILS !== 'undefined' && CONTACT_EMAILS) ? CONTACT_EMAILS : null;
+
+    const modelName = (profile?.legal_name || user?.username || 'Model');
+    const aliases = (profile?.aliases || '').trim();
+    const dob = (profile?.date_of_birth || '').trim();
+
+    const releaseEmail = CONTACTS?.release || 'release@lumennyxstudios.com';
+    const email2257 = CONTACTS?.['2257'] || CONTACTS?.compliance2257 || '2257@lumennyxstudios.com';
+    const legalEmail = CONTACTS?.legal || 'legal@lumennyxstudios.com';
+    const generalEmail = CONTACTS?.contact || 'contact@lumennyxstudios.com';
+
+    // Signature support: if you stored signature_png in master_releases, show it.
+    const sigFile = (release?.signature_png || '').trim();
+    const sigMethod = (release?.signature_method || '').trim();
+    const sigUrl = sigFile ? `/uploads/signatures/${sigFile}` : '';
+
+    const signedName = (release?.signed_name || '').trim();
+    const signedAt = release?.signed_at || '';
+    const ip = release?.ip_address || '';
+    const ua = release?.user_agent || '';
+  %>
+
+  <div class="no-print" style="margin-bottom: 14px;">
+    <button class="btn primary" onclick="window.print()">Print / Save as PDF</button>
+    <a class="btn" href="/studio-panel/models/<%= user?.id %>">Back to Model</a>
+  </div>
+
+  <header>
     <h1>LumenNyx Studios</h1>
     <h2>Master Model Release &amp; Grant of Rights</h2>
 
-    <div class="meta-grid">
-      <div>
-        <p><strong>Performer / Model:</strong>
-          <%= (profile && profile.legal_name) ? profile.legal_name : (user && user.username ? user.username : '—') %>
-        </p>
-        <p><strong>Aliases / Stage Names:</strong> <%= (profile && profile.aliases) ? profile.aliases : '—' %></p>
-        <p><strong>Date of Birth:</strong> <%= (profile && profile.date_of_birth) ? profile.date_of_birth : '—' %></p>
-      </div>
-      <div>
-        <% if (typeof CONTACT_EMAILS !== 'undefined' && CONTACT_EMAILS) { %>
-          <p><strong>Studio Contact (Releases):</strong> <%= CONTACT_EMAILS.release %></p>
-          <p><strong>2257 / Records:</strong> <%= CONTACT_EMAILS['2257'] || CONTACT_EMAILS.compliance2257 || '—' %></p>
-          <p><strong>Legal Notices:</strong> <%= CONTACT_EMAILS.legal %></p>
-        <% } else { %>
-          <p><strong>Studio Contact (Releases):</strong> release@lumennyxstudios.com</p>
-          <p><strong>2257 / Records:</strong> 2257@lumennyxstudios.com</p>
-          <p><strong>Legal Notices:</strong> legal@lumennyxstudios.com</p>
-        <% } %>
-      </div>
+    <div class="meta">
+      <div>Performer / Model: <strong><%= modelName %></strong></div>
+      <div>Internal Model ID: <strong>#<%= user?.id || '—' %></strong></div>
+
+      <div>Aliases / Stage Names: <strong><%= aliases || '—' %></strong></div>
+      <div>Date of Birth: <strong><%= dob || '—' %></strong></div>
+
+      <div>Studio Contact (Releases): <strong><%= releaseEmail %></strong></div>
+      <div>2257 / Records: <strong><%= email2257 %></strong></div>
+
+      <div>Legal Notices: <strong><%= legalEmail %></strong></div>
+      <div>General Contact: <strong><%= generalEmail %></strong></div>
     </div>
 
-    <div class="legal-block">
+    <div class="badge-row">
+      <span class="badge">Document: Master Release</span>
+      <span class="badge">Governing Law: New York</span>
+      <span class="badge">Internal Use</span>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <table class="kv">
+        <tr>
+          <th>Release Status</th>
+          <td><%= release ? 'On file' : 'No release on file' %></td>
+        </tr>
+        <tr>
+          <th>Signed Name (typed)</th>
+          <td><%= signedName || '—' %></td>
+        </tr>
+        <tr>
+          <th>Signed At (timestamp)</th>
+          <td><%= signedAt || '—' %></td>
+        </tr>
+        <tr>
+          <th>Signature Method</th>
+          <td><%= sigMethod || (release ? '—' : 'N/A') %></td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <table class="kv">
+        <tr>
+          <th>IP Address Recorded</th>
+          <td class="mono"><%= ip || '—' %></td>
+        </tr>
+        <tr>
+          <th>User-Agent Recorded</th>
+          <td class="mono" style="word-break: break-word;"><%= ua || '—' %></td>
+        </tr>
+        <tr>
+          <th>Signature File</th>
+          <td>
+            <% if (sigUrl) { %>
+              <a href="<%= sigUrl %>" target="_blank" rel="noopener"><%= sigFile %></a>
+            <% } else { %>
+              —
+            <% } %>
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="section-title">Release Terms (Summary)</div>
+  <div class="legal">
+    <p>
       This document is a general grant of rights by the performer to LumenNyx Studios (the “Producer”).
       It is intended for adult-oriented photo and video content produced in the United States with
       performers who are 18 years of age or older.
-    </div>
+    </p>
 
-    <div class="legal-block">
-      1. <strong>Age &amp; Identity.</strong> The performer affirms they are at least eighteen (18) years of age,
-      that identifying information and documentation provided to Producer is true and correct, and that valid
-      government-issued photo identification has been presented for record-keeping in accordance with U.S. federal
-      record rules (including 18 U.S.C. § 2257 and related regulations, where applicable).
-    </div>
+    <p>
+      <strong>1. Age &amp; Identity.</strong>
+      The performer affirms they are at least eighteen (18) years of age, that identifying information and
+      documentation provided to Producer is true and correct, and that valid government-issued photo
+      identification has been presented for record-keeping in accordance with U.S. federal record rules
+      (including 18 U.S.C. § 2257 and related regulations, where applicable).
+    </p>
 
-    <div class="legal-block">
-      2. <strong>Grant of Rights.</strong> The performer grants to Producer a perpetual, worldwide, transferable license
-      to record, reproduce, edit, adapt, publicly display, distribute, advertise, and otherwise exploit photo or video
-      content created during shoots with Producer, in any media now known or later developed, subject to any written restrictions
-      agreed separately in individual booking or scene agreements.
-    </div>
+    <p>
+      <strong>2. Grant of Rights.</strong>
+      The performer grants to Producer a perpetual, worldwide, transferable license to record, reproduce,
+      edit, adapt, publicly display, distribute, advertise, and otherwise exploit photo or video content
+      created during shoots with Producer, in any media now known or later developed, subject to any
+      written restrictions agreed separately in individual booking or scene agreements.
+    </p>
 
-    <div class="legal-block">
-      3. <strong>Use of Name &amp; Likeness.</strong> The performer authorizes Producer to use their legal name, stage names,
-      likeness, voice, and biographical material in connection with the advertising, marketing, and exploitation of the content,
+    <p>
+      <strong>3. Use of Name &amp; Likeness.</strong>
+      The performer authorizes Producer to use their legal name, stage names, likeness, voice, and
+      biographical material in connection with the advertising, marketing, and exploitation of the content,
       except where restricted in writing.
-    </div>
+    </p>
 
-    <div class="legal-block">
-      4. <strong>Independent Contractor Status.</strong> The performer understands they are engaged as an independent contractor,
-      not an employee, and is responsible for their own taxes and reporting obligations.
-    </div>
+    <p>
+      <strong>4. Independent Contractor Status.</strong>
+      The performer understands they are engaged as an independent contractor, not an employee, and is
+      responsible for their own taxes and reporting obligations.
+    </p>
 
-    <div class="legal-block">
-      5. <strong>Revocation / Takedown Requests.</strong> Producer will reasonably consider written requests from the performer regarding
-      removal or limited distribution of content, but no guarantee of removal from all platforms or archives is made.
-      Any agreed takedowns or modifications will be confirmed in writing.
-    </div>
+    <p>
+      <strong>5. Revocation / Takedown Requests.</strong>
+      Producer will reasonably consider written requests from the performer regarding removal or limited
+      distribution of content, but no guarantee of removal from all platforms or archives is made. Any
+      agreed takedowns or modifications will be confirmed in writing.
+    </p>
 
-    <div class="legal-block">
-      6. <strong>Governing Law.</strong> This release is intended to be interpreted under the laws of the State of New York,
-      without regard to conflict-of-law principles.
-    </div>
+    <p>
+      <strong>6. Governing Law.</strong>
+      This release is intended to be interpreted under the laws of the State of New York, without regard
+      to conflict-of-law principles.
+    </p>
 
-    <div class="legal-block">
+    <p class="muted">
       <em>Important:</em> This document is provided for record-keeping and clarity and is not individualized legal advice.
       Performers and Producer should consult their own attorney regarding their rights and obligations.
-    </div>
+    </p>
+  </div>
 
-    <div class="signature-box">
-      <% if (release) { %>
-        <p><strong>Performer signature on file:</strong> <%= release.signed_name || '—' %></p>
-        <p><strong>Signed at (timestamp):</strong> <%= release.signed_at || '—' %></p>
-        <p><strong>IP address recorded:</strong> <span class="mono"><%= release.ip_address || '—' %></span></p>
-        <p><strong>User-Agent recorded:</strong> <span class="mono"><%= release.user_agent || '—' %></span></p>
+  <div class="section-title">Signature Evidence</div>
+  <div class="sig-row">
+    <div class="sig-box">
+      <div style="font-weight:700; margin-bottom:8px;">Performer Signature (stored)</div>
+
+      <% if (release && sigUrl) { %>
+        <div class="sig-image">
+          <img src="<%= sigUrl %>" alt="Stored signature image" />
+        </div>
+        <div style="margin-top:10px; font-size:12.5px; color:#444;">
+          File: <span class="mono"><%= sigFile %></span>
+        </div>
+      <% } else if (release) { %>
+        <div class="note" style="margin-top:0;">
+          A master release exists, but no signature image was stored on this record.
+          (Typed name may still be present.)
+        </div>
       <% } else { %>
-        <p><strong>Status:</strong> No master release is on file for this model.</p>
-      <% } %>
-
-      <p><strong>Internal reference ID:</strong> Model #<%= user && user.id ? user.id : '—' %></p>
-    </div>
-
-    <div class="signature-box">
-      <p><strong>Producer / Studio:</strong> LumenNyx Studios (Wallkill, NY region)</p>
-      <% if (typeof CONTACT_EMAILS !== 'undefined' && CONTACT_EMAILS) { %>
-        <p><strong>General Contact:</strong> <%= CONTACT_EMAILS.contact || 'contact@lumennyxstudios.com' %></p>
-      <% } else { %>
-        <p><strong>General Contact:</strong> contact@lumennyxstudios.com</p>
+        <div class="note" style="margin-top:0;">
+          No master release is on file for this model.
+        </div>
       <% } %>
     </div>
+
+    <div class="sig-box">
+      <div style="font-weight:700; margin-bottom:8px;">Studio / Producer</div>
+      <table class="kv">
+        <tr>
+          <th>Producer / Studio</th>
+          <td>LumenNyx Studios</td>
+        </tr>
+        <tr>
+          <th>Region</th>
+          <td>Wallkill, NY (region)</td>
+        </tr>
+        <tr>
+          <th>General Contact</th>
+          <td><%= generalEmail %></td>
+        </tr>
+        <tr>
+          <th>Release Contact</th>
+          <td><%= releaseEmail %></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="note">
+    Operational note: This print view is designed to render cleanly via Puppeteer (Letter) and avoids checkbox glyphs by
+    relying on plain text fields. For audits, keep the underlying uploaded IDs and compliance docs in your private storage.
   </div>
 </body>
 </html>

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>LumenNyx Studios – New Booking</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="home">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/" class="brand-link">
+        <span class="brand-mark"><img src="/img/lumennyx-mark.png" alt="LumenNyx Studios logo"></span>
+        <span class="brand-text">LUMENNYX STUDIOS</span>
+      </a>
+      <nav class="main-nav">
+        <a href="/studio-panel">Studio Panel</a>
+        <a href="/studio-panel/bookings" class="active">Bookings</a>
+        <form action="/logout" method="POST" style="display:inline;">
+          <button type="submit" class="btn secondary" style="padding:0.3rem 0.9rem;font-size:0.75rem;">Logout</button>
+        </form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-wrapper">
+    <section class="portal-section">
+      <h2>New Booking</h2>
+      <p class="portal-note">Create a booking shell. The booking will start in <strong>pending_docs</strong> status until compliance is complete.</p>
+
+      <% if (message) { %><div class="alert success"><%= message %></div><% } %>
+      <% if (error) { %><div class="alert error"><%= error %></div><% } %>
+
+      <form action="/studio-panel/bookings/new" method="POST" class="portal-form">
+        <label>
+          Title *
+          <input type="text" name="title" required placeholder="e.g., B/G POV – Concept Name">
+        </label>
+
+        <label>
+          Shoot date (optional)
+          <input type="date" name="shoot_date">
+        </label>
+
+        <label>
+          Location (optional)
+          <input type="text" name="location" placeholder="Private studio / general area">
+        </label>
+
+        <label>
+          Compensation / notes (optional)
+          <input type="text" name="compensation" placeholder="e.g., $____ base + extras per agreement">
+        </label>
+
+        <label>
+          Internal notes (optional)
+          <textarea name="notes" placeholder="Internal planning notes..."></textarea>
+        </label>
+
+        <label>
+          Select approved model(s) *
+          <select name="model_ids" multiple required style="min-height: 180px;">
+            <% (models || []).forEach(function(m){ %>
+              <option value="<%= m.id %>">
+                <%= m.username %> — <%= (m.preferred_name || m.legal_name || 'No name on file') %>
+              </option>
+            <% }) %>
+          </select>
+        </label>
+
+        <p class="field-help">Hold Ctrl (Windows) / Cmd (Mac) to select multiple models.</p>
+
+        <div style="display:flex; gap:10px; justify-content:flex-end;">
+          <a href="/studio-panel/bookings" class="btn secondary">Cancel</a>
+          <button type="submit" class="btn primary">Create Booking</button>
+        </div>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

@@ -3,204 +3,459 @@
 <head>
   <meta charset="UTF-8" />
   <%
+    // Robust locals (some routes pass user, others pass modelUser)
     const safeModelUser = (typeof modelUser !== 'undefined') ? modelUser : null;
     const safeUser = (typeof user !== 'undefined') ? user : null;
     const u = safeModelUser || safeUser || {};
-    const uname = u && u.username ? u.username : 'Model';
+    const uname = (u && u.username) ? u.username : 'Model';
+
+    const CONTACTS = (typeof CONTACT_EMAILS !== 'undefined' && CONTACT_EMAILS) ? CONTACT_EMAILS : null;
+    const releaseEmail = CONTACTS?.release || 'release@lumennyxstudios.com';
+    const email2257 = CONTACTS?.['2257'] || CONTACTS?.compliance2257 || '2257@lumennyxstudios.com';
+    const legalEmail = CONTACTS?.legal || 'legal@lumennyxstudios.com';
+    const generalEmail = CONTACTS?.contact || 'contact@lumennyxstudios.com';
+
+    const genAt = (typeof generatedAt !== 'undefined' && generatedAt) ? generatedAt : new Date().toISOString();
+
+    // Prefer the 'release' local; fall back to masterRelease
+    const r = (typeof release !== 'undefined' && release)
+      ? release
+      : ((typeof masterRelease !== 'undefined' && masterRelease) ? masterRelease : null);
+
+    // Prefer policies.consent_json when present to avoid checkbox glyph issues downstream
+    let consentObj = null;
+    if (typeof policies !== 'undefined' && policies) {
+      if (policies.consent_json) {
+        try { consentObj = JSON.parse(policies.consent_json); } catch (_e) { consentObj = null; }
+      }
+      if (!consentObj) consentObj = policies;
+    }
+
+    const prof = (typeof profile !== 'undefined' && profile) ? profile : null;
+
+    function yesNo(v, yes = 'YES', no = 'NO / Not stated') {
+      return v ? yes : no;
+    }
+
+    function safeText(v) {
+      const s = (v === null || v === undefined) ? '' : String(v);
+      return s.trim();
+    }
+
+    function joinLoc(state, country) {
+      const parts = [safeText(state), safeText(country)].filter(Boolean);
+      return parts.length ? parts.join(', ') : '—';
+    }
   %>
-  <title>Identity Summary – <%= uname %></title>
+
+  <title>Identity Summary – <%= uname %> | LumenNyx Studios</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/css/style.css" />
+
   <style>
-    @media print {
-      .no-print { display: none !important; }
-      body { background: #fff; color: #000; }
+    :root {
+      --ink: #111;
+      --muted: #555;
+      --rule: #d7d7df;
+      --soft: #f6f6fb;
+      --paper: #ffffff;
+      --ok: #0a7a4b;
+      --warn: #8a1f1f;
     }
-    .print-page {
-      max-width: 900px;
-      margin: 1.5rem auto;
-      padding: 1.5rem;
-      background: #0b0b12;
-      border-radius: 16px;
-      border: 1px solid rgba(255,255,255,0.12);
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      margin: 24px;
+      color: var(--ink);
+      background: var(--paper);
+      line-height: 1.35;
     }
-    .print-page h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
-    .print-page h2 { font-size: 1.1rem; margin-top: 1.1rem; margin-bottom: 0.35rem; }
-    .print-grid {
+
+    .no-print { display: inline-flex; gap: 10px; align-items: center; }
+    .btn {
+      appearance: none;
+      border: 1px solid #c9c9d6;
+      background: #fff;
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn.primary {
+      background: #111;
+      color: #fff;
+      border-color: #111;
+    }
+
+    header {
+      border-bottom: 2px solid var(--rule);
+      padding-bottom: 12px;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-size: 20px;
+      margin: 0 0 6px 0;
+      letter-spacing: 0.2px;
+    }
+    h2 {
+      font-size: 14px;
+      margin: 14px 0 8px 0;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+    }
+
+    .meta {
+      font-size: 12.5px;
+      color: var(--muted);
       display: grid;
-      grid-template-columns: repeat(auto-fit,minmax(260px,1fr));
-      gap: 0.75rem 1.2rem;
-      font-size: 0.9rem;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 18px;
+      margin-top: 10px;
     }
-    .print-field-label { font-weight: 600; color: #ccc; }
-    .print-pill-ok {
-      display: inline-block;
-      padding: 0.1rem 0.55rem;
+
+    .badge-row {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .badge {
+      font-size: 12px;
+      padding: 4px 10px;
       border-radius: 999px;
-      font-size: 0.75rem;
-      background: rgba(0, 200, 120, 0.15);
-      border: 1px solid rgba(0, 200, 120, 0.6);
-      color: #c5ffe0;
+      border: 1px solid #cfcfe1;
+      background: var(--soft);
+      color: #333;
     }
-    .print-pill-missing {
-      display: inline-block;
-      padding: 0.1rem 0.55rem;
-      border-radius: 999px;
-      font-size: 0.75rem;
-      background: rgba(220, 65, 65, 0.15);
-      border: 1px solid rgba(220, 65, 65, 0.8);
-      color: #ffd0d0;
-    }
-    .print-mono {
-      font-family: ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-size: 0.8rem;
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12.5px;
       word-break: break-word;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .card {
+      border: 1px solid var(--rule);
+      border-radius: 12px;
+      padding: 12px;
+      background: #fff;
+    }
+
+    .kv {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .kv th, .kv td {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid #ececf4;
+      vertical-align: top;
+    }
+    .kv th { width: 44%; color: #222; }
+    .kv td { color: #111; }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid #cfcfe1;
+      background: var(--soft);
+      color: #333;
+      white-space: nowrap;
+    }
+    .pill.ok {
+      border-color: rgba(10, 122, 75, 0.35);
+      background: rgba(10, 122, 75, 0.08);
+      color: var(--ok);
+      font-weight: 700;
+    }
+    .pill.missing {
+      border-color: rgba(138, 31, 31, 0.35);
+      background: rgba(138, 31, 31, 0.08);
+      color: var(--warn);
+      font-weight: 700;
+    }
+
+    .list {
+      margin: 0;
+      padding-left: 18px;
+      font-size: 13px;
+    }
+    .list li { margin: 4px 0; }
+
+    .note {
+      margin-top: 12px;
+      font-size: 12.5px;
+      color: var(--muted);
+      border: 1px dashed #cfcfe1;
+      background: var(--soft);
+      padding: 10px 12px;
+      border-radius: 12px;
+    }
+
+    @media print {
+      body { margin: 0.5in; }
+      .no-print { display: none !important; }
+      a { color: inherit; text-decoration: none; }
+      .card { break-inside: avoid; }
+      .badge { background: #fff !important; }
     }
   </style>
 </head>
+
 <body>
-  <div class="print-page">
-    <div class="no-print" style="text-align:right; margin-bottom:0.5rem;">
-      <button class="btn secondary" onclick="window.print()">Print</button>
+  <div class="no-print" style="margin-bottom: 14px;">
+    <button class="btn primary" onclick="window.print()">Print / Save as PDF</button>
+    <% if (u && u.id) { %>
+      <a class="btn" href="/studio-panel/models/<%= u.id %>">Back to Model</a>
+    <% } else { %>
+      <a class="btn" href="/studio-panel/models">Back to Models</a>
+    <% } %>
+  </div>
+
+  <header>
+    <h1>LumenNyx Studios</h1>
+    <div style="font-weight:800; font-size:15px;">Model Identity Summary</div>
+
+    <div class="meta">
+      <div>Username: <strong><%= uname %></strong></div>
+      <div>Generated: <strong><%= genAt %></strong></div>
+
+      <div>Internal Model ID: <strong>#<%= u?.id || '—' %></strong></div>
+      <div>Account Email: <strong><%= safeText(u?.email) || '—' %></strong></div>
+
+      <div>Studio Contact (Releases): <strong><%= releaseEmail %></strong></div>
+      <div>2257 / Records: <strong><%= email2257 %></strong></div>
+
+      <div>Legal Notices: <strong><%= legalEmail %></strong></div>
+      <div>General Contact: <strong><%= generalEmail %></strong></div>
     </div>
 
-    <h1>LumenNyx Studios – Model Identity Summary</h1>
-    <p class="print-mono">
-      Username: <%= (u && u.username) ? u.username : '—' %><br/>
-      Generated: <%= (typeof generatedAt !== 'undefined' && generatedAt) ? generatedAt : new Date().toISOString() %>
-    </p>
+    <div class="badge-row">
+      <span class="badge">Internal Use</span>
+      <span class="badge">Document: Identity Summary</span>
+      <span class="badge">Generated via Portal</span>
+    </div>
+  </header>
 
-    <h2>1. Account & Basic Identity</h2>
-    <div class="print-grid">
-      <div>
-        <span class="print-field-label">Studio Username:</span><br />
-        <span><%= (u && u.username) ? u.username : '—' %></span>
-      </div>
-      <div>
-        <span class="print-field-label">Legal Name:</span><br />
-        <span><%= (typeof profile !== 'undefined' && profile && profile.legal_name) ? profile.legal_name : "—" %></span>
-      </div>
-      <div>
-        <span class="print-field-label">Email:</span><br />
-        <span>
-          <%= (u && u.email) ? u.email : ((typeof profile !== 'undefined' && profile && profile.email) ? profile.email : "—") %>
-        </span>
-      </div>
-      <div>
-        <span class="print-field-label">Aliases / Stage Names:</span><br />
-        <span><%= (typeof profile !== 'undefined' && profile && profile.aliases) ? profile.aliases : "—" %></span>
-      </div>
-      <div>
-        <span class="print-field-label">Preferred Name:</span><br />
-        <span><%= (typeof profile !== 'undefined' && profile && profile.preferred_name) ? profile.preferred_name : "—" %></span>
-      </div>
-      <div>
-        <span class="print-field-label">Date of Birth:</span><br />
-        <span><%= (typeof profile !== 'undefined' && profile && profile.date_of_birth) ? profile.date_of_birth : "—" %></span>
-      </div>
-      <div>
-        <span class="print-field-label">Location:</span><br />
-        <span>
-          <%= (typeof profile !== 'undefined' && profile && profile.state) ? (profile.state + ", ") : "" %>
-          <%= (typeof profile !== 'undefined' && profile && profile.country) ? profile.country : "" %>
-          <%= (!(typeof profile !== 'undefined' && profile) || ((profile && !profile.state && !profile.country))) ? "—" : "" %>
-        </span>
-      </div>
-      <div>
-        <span class="print-field-label">Phone:</span><br />
-        <span><%= (typeof profile !== 'undefined' && profile && profile.phone) ? profile.phone : "—" %></span>
-      </div>
-      <div>
-        <span class="print-field-label">Emergency Contact:</span><br />
-        <span>
-          <%= (typeof profile !== 'undefined' && profile && profile.emergency_name) ? profile.emergency_name : "—" %>
-          <%= (typeof profile !== 'undefined' && profile && profile.emergency_phone) ? (" (" + profile.emergency_phone + ")") : "" %>
-        </span>
-      </div>
+  <h2>1) Account & Basic Identity</h2>
+  <div class="grid-2">
+    <div class="card">
+      <table class="kv">
+        <tr>
+          <th>Studio Username</th>
+          <td><%= uname %></td>
+        </tr>
+        <tr>
+          <th>Legal Name</th>
+          <td><%= safeText(prof?.legal_name) || '—' %></td>
+        </tr>
+        <tr>
+          <th>Preferred Name</th>
+          <td><%= safeText(prof?.preferred_name) || '—' %></td>
+        </tr>
+        <tr>
+          <th>Aliases / Stage Names</th>
+          <td><%= safeText(prof?.aliases) || '—' %></td>
+        </tr>
+        <tr>
+          <th>Date of Birth</th>
+          <td><%= safeText(prof?.date_of_birth) || '—' %></td>
+        </tr>
+      </table>
     </div>
 
-    <h2>2. Master Model Release</h2>
-    <%
-      const r = (typeof release !== 'undefined' && release) ? release : ((typeof masterRelease !== 'undefined' && masterRelease) ? masterRelease : null);
-    %>
+    <div class="card">
+      <table class="kv">
+        <tr>
+          <th>Primary Email (best available)</th>
+          <td>
+            <%= safeText(u?.email) || safeText(prof?.email) || '—' %>
+          </td>
+        </tr>
+        <tr>
+          <th>Phone</th>
+          <td><%= safeText(prof?.phone) || '—' %></td>
+        </tr>
+        <tr>
+          <th>Location</th>
+          <td><%= joinLoc(prof?.state, prof?.country) %></td>
+        </tr>
+        <tr>
+          <th>Emergency Contact</th>
+          <td>
+            <%= safeText(prof?.emergency_name) || '—' %>
+            <% if (safeText(prof?.emergency_phone)) { %>
+              (<%= safeText(prof?.emergency_phone) %>)
+            <% } %>
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <h2>2) Master Model Release</h2>
+  <div class="card">
     <% if (r) { %>
-      <p>Status: <span class="print-pill-ok">SIGNED</span></p>
-      <p>
-        Signed Name: <strong><%= r.signed_name %></strong><br />
-        Signed At: <span><%= r.signed_at %></span><br />
-        IP Address: <span class="print-mono"><%= r.ip_address || "—" %></span><br />
-        User Agent: <span class="print-mono"><%= r.user_agent || "—" %></span>
-      </p>
-    <% } else { %>
-      <p>Status: <span class="print-pill-missing">NO ONLINE MASTER RELEASE ON FILE</span></p>
-    <% } %>
+      <div style="margin-bottom:10px;">
+        Status: <span class="pill ok">SIGNED</span>
+      </div>
 
-    <h2>3. Documents (on portal)</h2>
+      <div class="grid-2">
+        <div>
+          <table class="kv">
+            <tr>
+              <th>Signed Name (typed)</th>
+              <td><%= safeText(r.signed_name) || '—' %></td>
+            </tr>
+            <tr>
+              <th>Signed At</th>
+              <td><%= r.signed_at || '—' %></td>
+            </tr>
+            <tr>
+              <th>Signature Method</th>
+              <td><%= safeText(r.signature_method) || '—' %></td>
+            </tr>
+            <tr>
+              <th>Signature File</th>
+              <td>
+                <% if (safeText(r.signature_png)) { %>
+                  <a href="/uploads/signatures/<%= r.signature_png %>" target="_blank" rel="noopener">
+                    <span class="mono"><%= r.signature_png %></span>
+                  </a>
+                <% } else { %>
+                  —
+                <% } %>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <div>
+          <table class="kv">
+            <tr>
+              <th>IP Address</th>
+              <td class="mono"><%= safeText(r.ip_address) || '—' %></td>
+            </tr>
+            <tr>
+              <th>User Agent</th>
+              <td class="mono"><%= safeText(r.user_agent) || '—' %></td>
+            </tr>
+            <tr>
+              <th>Release Record ID</th>
+              <td class="mono"><%= r.id || '—' %></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    <% } else { %>
+      <div>
+        Status: <span class="pill missing">NO ONLINE MASTER RELEASE ON FILE</span>
+      </div>
+    <% } %>
+  </div>
+
+  <h2>3) Portal Documents (Compliance Uploads)</h2>
+  <div class="card">
     <% if (typeof documents !== 'undefined' && documents && documents.length) { %>
-      <p>Status: <span class="print-pill-ok"><%= documents.length %> file(s)</span></p>
-      <div class="print-mono">
-        <% documents.forEach((d) => { %>
-          • <%= d.doc_type %> — <%= d.filename %> — <%= d.uploaded_at || '' %><br/>
-        <% }) %>
+      <div style="margin-bottom:10px;">
+        Status: <span class="pill ok"><%= documents.length %> file(s)</span>
       </div>
+
+      <ul class="list">
+        <% documents.forEach((d) => { %>
+          <li>
+            <strong><%= d.doc_type || 'other' %></strong>
+            — <span class="mono"><%= d.filename %></span>
+            <% if (d.uploaded_at) { %> — <span class="mono"><%= d.uploaded_at %></span><% } %>
+          </li>
+        <% }) %>
+      </ul>
     <% } else { %>
-      <p>Status: <span class="print-pill-missing">NO DOCUMENTS UPLOADED</span></p>
+      <div>
+        Status: <span class="pill missing">NO DOCUMENTS UPLOADED</span>
+      </div>
     <% } %>
 
-    <h2>4. Consent, Safety & Policy Notes</h2>
-    <% if (typeof policies !== 'undefined' && policies) { %>
-      <div class="print-grid">
+    <div class="note">
+      Documents are stored privately (not publicly served). Downloads require authenticated access via the portal.
+    </div>
+  </div>
+
+  <h2>4) Consent, Safety & Policy Snapshot</h2>
+  <div class="card">
+    <% if (consentObj) { %>
+      <div style="margin-bottom:10px;">
+        Status: <span class="pill ok">ON FILE</span>
+        <% if (policies?.created_at) { %>
+          <span class="mono" style="margin-left:10px;">Saved: <%= policies.created_at %></span>
+        <% } %>
+      </div>
+
+      <div class="grid-2">
         <div>
-          <span class="print-field-label">Testing Routine Declared:</span><br />
-          <% if (policies.sti_testing_routine) { %>
-            <span class="print-pill-ok">YES</span>
-          <% } else { %>
-            <span class="print-pill-missing">NOT CHECKED</span>
-          <% } %>
+          <table class="kv">
+            <tr><th>Testing Routine Declared</th><td><%= yesNo(consentObj.sti_testing_routine) %></td></tr>
+            <tr><th>STI Disclosure Truth Ack</th><td><%= yesNo(consentObj.sti_disclosure_truth) %></td></tr>
+            <tr><th>Allows Kissing</th><td><%= consentObj.consent_allows_kissing ? 'Yes' : 'No' %></td></tr>
+            <tr><th>Allows Nudity</th><td><%= consentObj.consent_allows_nudity ? 'Yes' : 'No' %></td></tr>
+            <tr><th>Allows Rough</th><td><%= consentObj.consent_allows_rough ? 'Yes' : 'No' %></td></tr>
+            <tr><th>Allows Choking</th><td><%= consentObj.consent_allows_choking ? 'Yes' : 'No' %></td></tr>
+          </table>
         </div>
 
         <div>
-          <span class="print-field-label">Hard Limits:</span><br />
-          <span><%= policies.consent_hard_limits || "—" %></span>
-        </div>
-
-        <div>
-          <span class="print-field-label">Soft Limits / Notes:</span><br />
-          <span><%= policies.consent_soft_limits || "—" %></span>
-        </div>
-
-        <div>
-          <span class="print-field-label">No Substances:</span><br />
-          <% if (policies.policy_no_substances) { %>
-            <span class="print-pill-ok">YES</span>
-          <% } else { %>
-            <span class="print-pill-missing">NOT CHECKED</span>
-          <% } %>
-        </div>
-
-        <div>
-          <span class="print-field-label">Safeword Policy:</span><br />
-          <% if (policies.policy_safe_word) { %>
-            <span class="print-pill-ok">YES</span>
-          <% } else { %>
-            <span class="print-pill-missing">NOT CHECKED</span>
-          <% } %>
-        </div>
-
-        <div>
-          <span class="print-field-label">Contractor Acknowledgement:</span><br />
-          <% if (policies.contractor_acknowledge) { %>
-            <span class="print-pill-ok">Acknowledged</span>
-            <span><%= policies.contractor_signature ? (" — " + policies.contractor_signature) : "" %></span>
-          <% } else { %>
-            <span class="print-pill-missing">NOT CHECKED</span>
-          <% } %>
+          <table class="kv">
+            <tr><th>Hard Limits</th><td><%= safeText(consentObj.consent_hard_limits) || '—' %></td></tr>
+            <tr><th>Soft Limits</th><td><%= safeText(consentObj.consent_soft_limits) || '—' %></td></tr>
+            <tr><th>No Substances</th><td><%= consentObj.policy_no_substances ? 'Acknowledged' : 'Not checked' %></td></tr>
+            <tr><th>Safeword Policy</th><td><%= consentObj.policy_safe_word ? 'Acknowledged' : 'Not checked' %></td></tr>
+            <tr><th>Breaks Allowed</th><td><%= consentObj.policy_breaks ? 'Acknowledged' : 'Not checked' %></td></tr>
+            <tr><th>Reporting Unsafe Behavior</th><td><%= consentObj.policy_reporting ? 'Acknowledged' : 'Not checked' %></td></tr>
+          </table>
         </div>
       </div>
 
-      <h2>5. Internal Removal / Takedown Notes</h2>
-      <p><%= policies.policy_removal_notes ? policies.policy_removal_notes : "— No additional notes recorded." %></p>
+      <div style="margin-top:12px;">
+        <table class="kv">
+          <tr>
+            <th>Independent Contractor Ack</th>
+            <td>
+              <%= consentObj.contractor_acknowledge ? 'Yes' : 'No / Not stated' %>
+              <% if (safeText(consentObj.contractor_signature)) { %>
+                — <strong><%= safeText(consentObj.contractor_signature) %></strong>
+              <% } %>
+            </td>
+          </tr>
+          <tr>
+            <th>Removal / Takedown Notes</th>
+            <td><%= safeText(consentObj.policy_removal_notes) || '—' %></td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="note">
+        This is a planning/safety snapshot. Scene-specific releases still govern the specific acts, partners, and scope for each shoot.
+      </div>
     <% } else { %>
-      <p><span class="print-pill-missing">NO ONLINE CONSENT / POLICY CHECKLIST ON FILE</span></p>
+      <div>
+        Status: <span class="pill missing">NO ONLINE CONSENT / POLICY CHECKLIST ON FILE</span>
+      </div>
     <% } %>
   </div>
 </body>

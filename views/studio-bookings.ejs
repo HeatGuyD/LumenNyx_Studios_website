@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>LumenNyx Studios – Bookings</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="home">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/" class="brand-link">
+        <span class="brand-mark"><img src="/img/lumennyx-mark.png" alt="LumenNyx Studios logo"></span>
+        <span class="brand-text">LUMENNYX STUDIOS</span>
+      </a>
+      <nav class="main-nav">
+        <a href="/studio-panel">Studio Panel</a>
+        <a href="/studio-panel/models">Models</a>
+        <a href="/studio-panel/docs">Docs Map</a>
+        <a href="/studio-panel/bookings" class="active">Bookings</a>
+        <a href="/2257">2257</a>
+        <form action="/logout" method="POST" style="display:inline;">
+          <button type="submit" class="btn secondary" style="padding:0.3rem 0.9rem;font-size:0.75rem;">Logout</button>
+        </form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-wrapper">
+    <section class="portal-section">
+      <h2>Bookings</h2>
+      <p class="portal-note">Create and manage bookings. Bookings cannot be confirmed until all required compliance is complete for all attached models.</p>
+
+      <% if (message) { %><div class="alert success"><%= message %></div><% } %>
+      <% if (error) { %><div class="alert error"><%= error %></div><% } %>
+
+      <div style="display:flex; gap:10px; justify-content:flex-end; margin: 0.8rem 0;">
+        <a href="/studio-panel/bookings/new" class="btn primary">New Booking</a>
+      </div>
+
+      <div class="documents-list">
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Shoot Date</th>
+              <th>Status</th>
+              <th>Models</th>
+              <th>Created</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% (bookings || []).forEach(function(b){ %>
+              <tr>
+                <td><strong><%= b.title %></strong></td>
+                <td><%= b.shoot_date || '—' %></td>
+                <td><%= b.status %></td>
+                <td><%= b.model_count || 0 %></td>
+                <td><%= b.created_at %></td>
+                <td><a class="btn secondary" href="/studio-panel/bookings/<%= b.id %>" style="padding:0.25rem 0.7rem;font-size:0.8rem;">Open</a></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

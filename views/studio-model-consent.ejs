@@ -1,87 +1,315 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Consent & Safety Profile – <%= user.username %></title>
+  <meta charset="UTF-8" />
+  <title>Consent & Safety – <%= (user?.username || 'Model') %> | LumenNyx Studios</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body { font-family: system-ui, sans-serif; margin: 20px; line-height: 1.4; }
-    h1, h2 { margin-bottom: 0.25rem; }
-    h1 { font-size: 1.4rem; }
-    h2 { font-size: 1.1rem; margin-top: 1.2rem; }
-    .meta { font-size: 0.9rem; color: #555; margin-bottom: 1rem; }
-    ul { margin-top: 0.4rem; }
-    li { margin-bottom: 0.25rem; }
-    .note { margin-top: 1.2rem; font-size: 0.85rem; color: #555; }
-    @media print { button { display: none; } }
+    :root {
+      --ink: #111;
+      --muted: #555;
+      --rule: #d7d7df;
+      --soft: #f6f6fb;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      margin: 24px;
+      color: var(--ink);
+      line-height: 1.35;
+    }
+
+    .no-print { display: inline-flex; gap: 10px; align-items: center; }
+    .btn {
+      appearance: none;
+      border: 1px solid #c9c9d6;
+      background: #fff;
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .btn.primary {
+      background: #111;
+      color: #fff;
+      border-color: #111;
+    }
+
+    header {
+      border-bottom: 2px solid var(--rule);
+      padding-bottom: 12px;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-size: 20px;
+      margin: 0 0 6px 0;
+      letter-spacing: 0.2px;
+    }
+
+    .meta {
+      font-size: 12.5px;
+      color: var(--muted);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 18px;
+      margin-top: 8px;
+    }
+    .meta div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .badge-row {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .badge {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid #cfcfe1;
+      background: var(--soft);
+      color: #333;
+    }
+
+    h2 {
+      font-size: 15px;
+      margin: 16px 0 8px 0;
+      padding-top: 8px;
+      border-top: 1px solid var(--rule);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 10px;
+    }
+
+    .card {
+      border: 1px solid var(--rule);
+      border-radius: 12px;
+      padding: 12px;
+      background: #fff;
+    }
+
+    .kv {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .kv th, .kv td {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid #ececf4;
+      vertical-align: top;
+    }
+    .kv th { width: 52%; color: #222; }
+    .kv td { color: #111; }
+
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .muted { color: var(--muted); }
+    .pre { white-space: pre-wrap; word-break: break-word; }
+
+    .note {
+      margin-top: 12px;
+      font-size: 12.5px;
+      color: var(--muted);
+      border: 1px dashed #cfcfe1;
+      background: var(--soft);
+      padding: 10px 12px;
+      border-radius: 12px;
+    }
+
+    @media print {
+      body { margin: 0.5in; }
+      .no-print { display: none !important; }
+      .card { break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
+    }
   </style>
 </head>
 <body>
-  <button onclick="window.print()">Print</button>
+  <%
+    // Normalize policies: prefer consent_json (portal-first) and fall back to columns.
+    let consent = {};
+    let hasConsent = Boolean(policies);
 
-  <h1>LumenNyx Studios – Consent & Safety Profile</h1>
-  <div class="meta">
-    Username: <strong><%= user.username %></strong><br>
-    Generated: <%= new Date().toLocaleString() %>
+    if (policies && policies.consent_json) {
+      try {
+        const parsed = JSON.parse(String(policies.consent_json));
+        if (parsed && typeof parsed === 'object') consent = parsed;
+      } catch (_e) {
+        consent = {};
+      }
+    }
+
+    // Merge: consent_json values override base policies when present
+    const P = Object.assign({}, (policies || {}), (consent || {}));
+
+    const username = user?.username || 'Model';
+    const generatedAt = new Date().toLocaleString();
+
+    const legalName = (profile?.legal_name || '').trim();
+    const preferredName = (profile?.preferred_name || '').trim();
+    const dob = (profile?.date_of_birth || '').trim();
+
+    const yesNo = (v, yes='Yes', no='No / Not stated') => (v ? yes : no);
+
+    const policyVersion = (policies?.consent_version || '').trim();
+    const savedAt = (policies?.created_at || '').toString();
+
+    // Optional: show the raw stored contractor signature name
+    const contractorSig = (P?.contractor_signature || '').toString().trim();
+  %>
+
+  <div class="no-print" style="margin-bottom: 14px;">
+    <button class="btn primary" onclick="window.print()">Print</button>
+    <span class="muted" style="font-size:13px;">Tip: This page is also used for PDF generation.</span>
   </div>
 
-  <% if (!policies) { %>
+  <header>
+    <h1>LumenNyx Studios – Consent &amp; Safety Profile</h1>
+
+    <div class="meta">
+      <div>Username: <strong><%= username %></strong></div>
+      <div>Generated: <strong><%= generatedAt %></strong></div>
+
+      <div>Legal Name: <strong><%= legalName || '—' %></strong></div>
+      <div>Preferred Name: <strong><%= preferredName || '—' %></strong></div>
+
+      <div>Date of Birth: <strong><%= dob || '—' %></strong></div>
+      <div>Saved (portal): <strong><%= savedAt || '—' %></strong></div>
+    </div>
+
+    <div class="badge-row">
+      <span class="badge">Document: Consent &amp; Safety</span>
+      <% if (policyVersion) { %>
+        <span class="badge">Version: <span class="mono"><%= policyVersion %></span></span>
+      <% } %>
+      <span class="badge">Internal Use</span>
+    </div>
+  </header>
+
+  <% if (!hasConsent) { %>
     <p>No consent / safety profile has been saved for this model.</p>
   <% } else { %>
-    <h2>General Comfort & Consent</h2>
-    <ul>
-      <li>Kissing: <%= policies.consent_allows_kissing ? 'Generally OK' : 'Not checked' %></li>
-      <li>Nudity: <%= policies.consent_allows_nudity ? 'OK' : 'Not checked' %></li>
-      <li>Rough play: <%= policies.consent_allows_rough ? 'Open with limits' : 'Not checked' %></li>
-      <li>Choking fantasy: <%= policies.consent_allows_choking ? 'Open with limits' : 'Not checked' %></li>
-    </ul>
 
-    <h2>Hard Limits (Never OK)</h2>
-    <p><%= policies.consent_hard_limits || '(none listed)' %></p>
+    <h2>General Comfort &amp; Consent</h2>
+    <div class="grid">
+      <div class="card">
+        <table class="kv">
+          <tr>
+            <th>Allows Kissing</th>
+            <td><%= yesNo(P.consent_allows_kissing, 'Yes', 'No') %></td>
+          </tr>
+          <tr>
+            <th>Allows Nudity</th>
+            <td><%= yesNo(P.consent_allows_nudity, 'Yes', 'No') %></td>
+          </tr>
+          <tr>
+            <th>Allows Rough Play</th>
+            <td><%= yesNo(P.consent_allows_rough, 'Yes (with limits)', 'No / Not checked') %></td>
+          </tr>
+          <tr>
+            <th>Allows Choking Fantasy</th>
+            <td><%= yesNo(P.consent_allows_choking, 'Yes (with limits)', 'No / Not checked') %></td>
+          </tr>
+        </table>
+      </div>
 
-    <h2>Soft Limits (“Ask First”)</h2>
-    <p><%= policies.consent_soft_limits || '(none listed)' %></p>
+      <div class="card">
+        <table class="kv">
+          <tr>
+            <th>Hard Limits (Never OK)</th>
+            <td class="pre"><%= (P.consent_hard_limits || '').trim() || '(none listed)' %></td>
+          </tr>
+          <tr>
+            <th>Soft Limits (“Ask First”)</th>
+            <td class="pre"><%= (P.consent_soft_limits || '').trim() || '(none listed)' %></td>
+          </tr>
+        </table>
+      </div>
+    </div>
 
     <h2>On-Set Safety Rules</h2>
-    <ul>
-      <li>No illegal drugs / no performing while impaired:
-        <%= policies.policy_no_substances ? 'Acknowledged' : 'Not checked' %>
-      </li>
-      <li>Safe word stops all activity:
-        <%= policies.policy_safe_word ? 'Acknowledged' : 'Not checked' %>
-      </li>
-      <li>Breaks allowed:
-        <%= policies.policy_breaks ? 'Acknowledged' : 'Not checked' %>
-      </li>
-      <li>Reporting unsafe behavior:
-        <%= policies.policy_reporting ? 'Acknowledged' : 'Not checked' %>
-      </li>
-    </ul>
+    <div class="card">
+      <table class="kv">
+        <tr>
+          <th>No illegal drugs / no performing while impaired</th>
+          <td><%= yesNo(P.policy_no_substances, 'Acknowledged', 'Not checked') %></td>
+        </tr>
+        <tr>
+          <th>Safe word stops all activity</th>
+          <td><%= yesNo(P.policy_safe_word, 'Acknowledged', 'Not checked') %></td>
+        </tr>
+        <tr>
+          <th>Breaks allowed / may pause at any time</th>
+          <td><%= yesNo(P.policy_breaks, 'Acknowledged', 'Not checked') %></td>
+        </tr>
+        <tr>
+          <th>Reporting unsafe behavior</th>
+          <td><%= yesNo(P.policy_reporting, 'Acknowledged', 'Not checked') %></td>
+        </tr>
+      </table>
+    </div>
+
+    <h2>Health &amp; STI Disclosure</h2>
+    <div class="card">
+      <table class="kv">
+        <tr>
+          <th>STI Testing Routine Confirmed</th>
+          <td><%= yesNo(P.sti_testing_routine, 'Yes', 'No / Not stated') %></td>
+        </tr>
+        <tr>
+          <th>STI Disclosure Truth Acknowledgement</th>
+          <td><%= yesNo(P.sti_disclosure_truth, 'Yes', 'No / Not stated') %></td>
+        </tr>
+        <tr>
+          <th>STI Notes</th>
+          <td class="pre"><%= (P.sti_notes || '').trim() || '—' %></td>
+        </tr>
+      </table>
+    </div>
 
     <h2>Content Removal Expectations</h2>
-    <ul>
-      <li>Understands full internet removal is not guaranteed:
-        <%= policies.policy_understand_no_guaranteed_removal ? 'Yes' : 'Not checked' %>
-      </li>
-      <li>May request internal takedowns in good faith:
-        <%= policies.policy_internal_requests ? 'Yes' : 'Not checked' %>
-      </li>
-    </ul>
-    <p><strong>Removal notes:</strong> <%= policies.policy_removal_notes || '(none)' %></p>
+    <div class="card">
+      <table class="kv">
+        <tr>
+          <th>Understands full internet removal is not guaranteed</th>
+          <td><%= yesNo(P.policy_understand_no_guaranteed_removal, 'Yes', 'Not checked') %></td>
+        </tr>
+        <tr>
+          <th>May request internal takedowns in good faith</th>
+          <td><%= yesNo(P.policy_internal_requests, 'Yes', 'Not checked') %></td>
+        </tr>
+        <tr>
+          <th>Removal notes</th>
+          <td class="pre"><%= (P.policy_removal_notes || '').trim() || '(none)' %></td>
+        </tr>
+      </table>
+    </div>
 
     <h2>Contractor Acknowledgement</h2>
-    <ul>
-      <li>Independent contractor, not employee:
-        <%= policies.contractor_acknowledge ? 'Yes' : 'Not checked' %>
-      </li>
-      <li>Digital signature / typed name:
-        <%= policies.contractor_signature || '(none)' %>
-      </li>
-    </ul>
+    <div class="card">
+      <table class="kv">
+        <tr>
+          <th>Independent contractor (not an employee)</th>
+          <td><%= yesNo(P.contractor_acknowledge, 'Yes', 'Not checked') %></td>
+        </tr>
+        <tr>
+          <th>Typed / digital acknowledgement name</th>
+          <td><%= contractorSig || '(none)' %></td>
+        </tr>
+      </table>
+    </div>
 
-    <p class="note">
-      This consent profile is intended as a high-level reference for planning and safety.
-      Scene-specific releases should still be used to document acts and partners for each shoot.
-    </p>
+    <div class="note">
+      This consent profile is a planning and safety reference only. Scene-specific documentation should still be used
+      to record participants, activities, and any shoot-specific boundaries or changes.
+    </div>
+
   <% } %>
 </body>
 </html>

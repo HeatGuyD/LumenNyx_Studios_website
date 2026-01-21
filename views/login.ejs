@@ -39,6 +39,10 @@
         <div class="alert error"><%= error %></div>
       <% } %>
 
+      <% if (typeof message !== 'undefined' && message) { %>
+        <div class="alert success"><%= message %></div>
+      <% } %>
+
       <form action="/login" method="POST" class="auth-form">
         <label>
           Username

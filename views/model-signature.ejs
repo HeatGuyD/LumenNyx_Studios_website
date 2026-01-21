@@ -15,7 +15,9 @@
       <nav class="main-nav">
         <a href="/model/profile">Profile</a>
         <a href="/model/release">Release</a>
-        <a href="/logout">Logout</a>
+        <form action="/logout" method="POST" style="display:inline;">
+          <button class="btn secondary" style="padding:0.25rem 0.9rem;font-size:0.8rem;">Logout</button>
+        </form>
       </nav>
     </div>
   </header>
@@ -31,6 +33,14 @@
       <div class="notice success">
         A signature is already on file (created <%= signature.created_at %>). You can replace it below.
       </div>
+    <% } %>
+
+    <% if (typeof error !== 'undefined' && error) { %>
+      <div class="alert error"><%= error %></div>
+    <% } %>
+
+    <% if (typeof message !== 'undefined' && message) { %>
+      <div class="alert success"><%= message %></div>
     <% } %>
 
     <form id="sigForm" action="/model/signature" method="POST" class="card">
@@ -53,9 +63,12 @@
         <div style="margin-top: 12px;">
           <div class="muted" style="margin-bottom: 8px;">Choose a style:</div>
           <div class="sig-style-row">
-            <button type="button" class="sig-style active" data-style="style1" style="font-family: 'Brush Script MT', 'Segoe Script', cursive;">Signature Style 1</button>
-            <button type="button" class="sig-style" data-style="style2" style="font-family: 'Segoe Script', 'Lucida Handwriting', cursive;">Signature Style 2</button>
-            <button type="button" class="sig-style" data-style="style3" style="font-family: 'Lucida Handwriting', 'Comic Sans MS', cursive;">Signature Style 3</button>
+            <button type="button" class="sig-style active" data-style="style1"
+              style="font-family: 'Brush Script MT', 'Segoe Script', cursive;">Signature Style 1</button>
+            <button type="button" class="sig-style" data-style="style2"
+              style="font-family: 'Segoe Script', 'Lucida Handwriting', cursive;">Signature Style 2</button>
+            <button type="button" class="sig-style" data-style="style3"
+              style="font-family: 'Lucida Handwriting', 'Comic Sans MS', cursive;">Signature Style 3</button>
           </div>
         </div>
 

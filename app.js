@@ -1,3 +1,4 @@
+// app.js
 require('dotenv').config();
 
 const path = require('path');
@@ -8,10 +9,10 @@ const session = require('express-session');
 const bcrypt = require('bcrypt');
 const sqlite3 = require('sqlite3').verbose();
 const multer = require('multer');
+
 // ----------------------
 // NODEMAILER (SMTP) - TEST + HELPERS
 // ----------------------
-
 
 // Puppeteer is used to render your existing EJS "print" templates into a true PDF.
 // Install once: npm i puppeteer
@@ -112,7 +113,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 // Trust proxy only when you actually run behind a reverse proxy (nginx, etc.)
-// app.set('trust proxy', 1);
+app.set('trust proxy', 1);
 
 app.use(
   session({
@@ -250,8 +251,6 @@ db.serialize(async () => {
     )
   `);
 
-  
-    
   // ---- Signatures (typed-styled or drawn) ----
   await dbRun(`
     CREATE TABLE IF NOT EXISTS signatures (
@@ -270,17 +269,17 @@ db.serialize(async () => {
   `);
 
   // Link releases to signatures (non-breaking migration)
-  await ensureColumn("master_releases", "signature_id INTEGER");
-  await ensureColumn("master_releases", "signature_method TEXT");
-  await ensureColumn("master_releases", "signature_png TEXT");
+  await ensureColumn('master_releases', 'signature_id INTEGER');
+  await ensureColumn('master_releases', 'signature_method TEXT');
+  await ensureColumn('master_releases', 'signature_png TEXT');
 
   // Expand model_profiles for applicant vetting (non-breaking)
-  await ensureColumn("model_profiles", "fullbody_path TEXT");
-  await ensureColumn("model_profiles", "portfolio_url TEXT");
-  await ensureColumn("model_profiles", "bio TEXT");
-  await ensureColumn("model_profiles", "experience_level TEXT");
-  await ensureColumn("model_profiles", "application_submitted_at DATETIME");
-  await ensureColumn("model_profiles", "admin_notes TEXT");
+  await ensureColumn('model_profiles', 'fullbody_path TEXT');
+  await ensureColumn('model_profiles', 'portfolio_url TEXT');
+  await ensureColumn('model_profiles', 'bio TEXT');
+  await ensureColumn('model_profiles', 'experience_level TEXT');
+  await ensureColumn('model_profiles', 'application_submitted_at DATETIME');
+  await ensureColumn('model_profiles', 'admin_notes TEXT');
 
   await dbRun(`
     CREATE TABLE IF NOT EXISTS consent_policies (
@@ -308,11 +307,9 @@ db.serialize(async () => {
     )
   `);
 
-
-    
-    // Migrate consent_policies for portal-first scene limits
-  await ensureColumn("consent_policies", "consent_json TEXT");
-  await ensureColumn("consent_policies", "consent_version TEXT");
+  // Migrate consent_policies for portal-first scene limits
+  await ensureColumn('consent_policies', 'consent_json TEXT');
+  await ensureColumn('consent_policies', 'consent_version TEXT');
 
   await dbRun(`
     CREATE TABLE IF NOT EXISTS scenes (
@@ -325,7 +322,6 @@ db.serialize(async () => {
     )
   `);
 
-
   await dbRun(`
     CREATE TABLE IF NOT EXISTS scene_models (
       scene_id INTEGER NOT NULL,
@@ -335,20 +331,63 @@ db.serialize(async () => {
       FOREIGN KEY(user_id) REFERENCES users(id)
     )
   `);
+  // ----------------------
+  // BOOKINGS (NEW)
+  // ----------------------
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS booking_profiles (
+      user_id INTEGER PRIMARY KEY,
+      legal_name TEXT,
+      aliases TEXT,
+      preferred_name TEXT,
+      date_of_birth TEXT,
+      country TEXT,
+      state TEXT,
+      phone TEXT,
+      email TEXT,
+      emergency_name TEXT,
+      emergency_phone TEXT,
+      portfolio_url TEXT,
+      bio TEXT,
+      experience_level TEXT,
+      synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    )
+  `);
 
-  await ensureColumn('model_profiles', 'preferred_name TEXT');
-  await ensureColumn('model_profiles', 'headshot_path TEXT');
-  await ensureColumn('consent_policies', 'created_at DATETIME');
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS bookings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      shoot_date TEXT,
+      location TEXT,
+      status TEXT NOT NULL DEFAULT 'draft',
+      compensation TEXT,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS booking_models (
+      booking_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      role_label TEXT,
+      PRIMARY KEY (booking_id, user_id),
+      FOREIGN KEY(booking_id) REFERENCES bookings(id),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    )
+  `);
+
 
   // Seed / ensure admin account in DB
   try {
     if (!ADMIN_PASSWORD) {
       console.warn('WARNING: ADMIN_PASSWORD is not set in .env.');
     } else {
-      const existingAdmin = await dbGet(
-        `SELECT * FROM users WHERE LOWER(username) = ? LIMIT 1`,
-        [ADMIN_USERNAME.toLowerCase()]
-      );
+      const existingAdmin = await dbGet(`SELECT * FROM users WHERE LOWER(username) = ? LIMIT 1`, [
+        ADMIN_USERNAME.toLowerCase(),
+      ]);
 
       const adminHash = await bcrypt.hash(ADMIN_PASSWORD, 12);
 
@@ -375,6 +414,25 @@ db.serialize(async () => {
 });
 
 // ----------------------
+// SESSION USER REFRESH (keeps status/role current after admin changes)
+// ----------------------
+app.use(async (req, _res, next) => {
+  try {
+    if (!req.session?.user?.id) return next();
+    const row = await dbGet(`SELECT id, username, role, status FROM users WHERE id = ? LIMIT 1`, [
+      req.session.user.id,
+    ]);
+    if (row) {
+      req.session.user = { id: row.id, username: row.username, role: row.role, status: row.status };
+    }
+    return next();
+  } catch (err) {
+    console.error('Session refresh error:', err);
+    return next();
+  }
+});
+
+// ----------------------
 // MULTER UPLOAD SETUP
 // ----------------------
 const uploadsRoot = path.join(__dirname, 'uploads');
@@ -397,8 +455,7 @@ const documentStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, docUploadsDir),
   filename: (req, file, cb) => {
     const userPart = req.session.user ? `${req.session.user.id}_` : 'anonymous_';
-    const uniqueName =
-      userPart + Date.now() + '_' + Math.random().toString(36).slice(2) + safeExt(file.originalname);
+    const uniqueName = userPart + Date.now() + '_' + Math.random().toString(36).slice(2) + safeExt(file.originalname);
     cb(null, uniqueName);
   },
 });
@@ -407,8 +464,7 @@ const photoStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, photoUploadsDir),
   filename: (req, file, cb) => {
     const userPart = req.session.user ? `${req.session.user.id}_` : 'anonymous_';
-    const uniqueName =
-      userPart + Date.now() + '_' + Math.random().toString(36).slice(2) + safeExt(file.originalname);
+    const uniqueName = userPart + Date.now() + '_' + Math.random().toString(36).slice(2) + safeExt(file.originalname);
     cb(null, uniqueName);
   },
 });
@@ -416,8 +472,7 @@ const photoStorage = multer.diskStorage({
 const sceneStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, sceneUploadsDir),
   filename: (_req, file, cb) => {
-    const uniqueName =
-      Date.now() + '_' + Math.random().toString(36).slice(2) + safeExt(file.originalname);
+    const uniqueName = Date.now() + '_' + Math.random().toString(36).slice(2) + safeExt(file.originalname);
     cb(null, uniqueName);
   },
 });
@@ -473,13 +528,119 @@ function ensureAdmin(req, res, next) {
   next();
 }
 
+/**
+ * Model access:
+ * - allows both pending + approved models to log in and complete application profile
+ * - blocks disabled models
+ */
 function ensureModel(req, res, next) {
   if (!req.session.ageConfirmed) return res.redirect('/age-check');
   if (!req.session.user || req.session.user.role !== 'model') {
     req.session.error = 'Model access only.';
     return res.redirect('/login');
   }
+  if (String(req.session.user.status || '').toLowerCase() === 'disabled') {
+    req.session.error = 'Your account is disabled. Please contact the studio.';
+    return res.redirect('/login');
+  }
   next();
+}
+
+/**
+ * Hard gate: only APPROVED models can access compliance/booking workflows.
+ * This enforces your stated process: register/apply -> admin review -> approval -> compliance.
+ */
+function ensureApprovedModel(req, res, next) {
+  if (!req.session.ageConfirmed) return res.redirect('/age-check');
+  if (!req.session.user || req.session.user.role !== 'model') {
+    req.session.error = 'Model access only.';
+    return res.redirect('/login');
+  }
+  const status = String(req.session.user.status || '').toLowerCase();
+  if (status !== 'approved') {
+    req.session.error =
+      'Your account is pending studio approval. You may complete your application profile and upload portfolio photos, but compliance paperwork is only available after approval.';
+    return res.redirect('/model/profile');
+  }
+  next();
+}
+async function syncBookingProfileFromModel(userId) {
+  const mp = await dbGet('SELECT * FROM model_profiles WHERE user_id = ? LIMIT 1', [userId]);
+  if (!mp) return;
+
+  const payload = [
+    userId,
+    mp.legal_name || null,
+    mp.aliases || null,
+    mp.preferred_name || null,
+    mp.date_of_birth || null,
+    mp.country || null,
+    mp.state || null,
+    mp.phone || null,
+    mp.email || null,
+    mp.emergency_name || null,
+    mp.emergency_phone || null,
+    mp.portfolio_url || null,
+    mp.bio || null,
+    mp.experience_level || null,
+  ];
+
+  await dbRun(
+    `INSERT INTO booking_profiles (
+      user_id, legal_name, aliases, preferred_name, date_of_birth,
+      country, state, phone, email, emergency_name, emergency_phone,
+      portfolio_url, bio, experience_level, synced_at
+    ) VALUES (
+      ?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP
+    )
+    ON CONFLICT(user_id) DO UPDATE SET
+      legal_name=excluded.legal_name,
+      aliases=excluded.aliases,
+      preferred_name=excluded.preferred_name,
+      date_of_birth=excluded.date_of_birth,
+      country=excluded.country,
+      state=excluded.state,
+      phone=excluded.phone,
+      email=excluded.email,
+      emergency_name=excluded.emergency_name,
+      emergency_phone=excluded.emergency_phone,
+      portfolio_url=excluded.portfolio_url,
+      bio=excluded.bio,
+      experience_level=excluded.experience_level,
+      synced_at=CURRENT_TIMESTAMP`,
+    payload
+  );
+}
+
+async function getModelComplianceChecklist(userId) {
+  const docs = await dbAll(`SELECT doc_type FROM compliance_documents WHERE user_id = ?`, [userId]);
+  const hasDoc = (t) => docs.some((d) => d.doc_type === t);
+
+  const sig = await dbGet(`SELECT id FROM signatures WHERE user_id=? ORDER BY created_at DESC LIMIT 1`, [userId]);
+  const mr = await dbGet(`SELECT id FROM master_releases WHERE user_id=? ORDER BY signed_at DESC LIMIT 1`, [userId]);
+  const consent = await dbGet(`SELECT user_id, consent_json FROM consent_policies WHERE user_id=? LIMIT 1`, [userId]);
+
+  const checklist = {
+    signature: Boolean(sig),
+    masterRelease: Boolean(mr),
+    consent: Boolean(consent && (consent.consent_json || consent.user_id)),
+    id_primary_front: hasDoc('id_primary_front'),
+    id_primary_back: hasDoc('id_primary_back'),
+    selfie_with_id: hasDoc('selfie_with_id'),
+    w9: hasDoc('w9'),
+    sti_test: hasDoc('sti_test'),
+  };
+
+  const requiredOk =
+    checklist.signature &&
+    checklist.masterRelease &&
+    checklist.consent &&
+    checklist.id_primary_front &&
+    checklist.id_primary_back &&
+    checklist.selfie_with_id &&
+    checklist.w9;
+
+  return { checklist, requiredOk };
 }
 
 // ----------------------
@@ -501,10 +662,7 @@ async function canAccessUserFile(req, fileOwnerUserId) {
 app.get('/uploads/docs/:filename', ensureAgeConfirmed, ensureLoggedIn, async (req, res) => {
   const filename = sanitizeFilename(req.params.filename);
   try {
-    const doc = await dbGet(
-      `SELECT user_id, filename FROM compliance_documents WHERE filename = ? LIMIT 1`,
-      [filename]
-    );
+    const doc = await dbGet(`SELECT user_id, filename FROM compliance_documents WHERE filename = ? LIMIT 1`, [filename]);
     if (!doc) return res.status(404).send('Not found');
     const allowed = await canAccessUserFile(req, doc.user_id);
     if (!allowed) return res.status(403).send('Forbidden');
@@ -531,15 +689,13 @@ app.get('/uploads/photos/:filename', ensureAgeConfirmed, ensureLoggedIn, async (
   }
 });
 
-// Scenes: admin/staff only
-
 app.get('/uploads/signatures/:filename', ensureAgeConfirmed, ensureLoggedIn, async (req, res) => {
   const filename = sanitizeFilename(req.params.filename);
   try {
-    const owner = await dbGet(
-      `SELECT user_id FROM signatures WHERE signature_png = ? OR initials_png = ? LIMIT 1`,
-      [filename, filename]
-    );
+    const owner = await dbGet(`SELECT user_id FROM signatures WHERE signature_png = ? OR initials_png = ? LIMIT 1`, [
+      filename,
+      filename,
+    ]);
     if (!owner) return res.status(404).send('Not found');
     const allowed = await canAccessUserFile(req, owner.user_id);
     if (!allowed) return res.status(403).send('Forbidden');
@@ -550,7 +706,7 @@ app.get('/uploads/signatures/:filename', ensureAgeConfirmed, ensureLoggedIn, asy
   }
 });
 
-
+// Scenes: admin/staff only
 app.get('/uploads/scenes/:filename', ensureAdmin, async (req, res) => {
   const filename = sanitizeFilename(req.params.filename);
   try {
@@ -626,11 +782,15 @@ app.post('/login', ensureAgeConfirmed, async (req, res) => {
       return res.redirect('/login');
     }
 
-    if (user.role === 'model' && user.status === 'pending') {
-      req.session.error = 'Your model account is still pending review. We will contact you once it is approved.';
+    // Disabled blocks login for models (admins/staff handled by role check)
+    if (user.role === 'model' && String(user.status || '').toLowerCase() === 'disabled') {
+      req.session.error = 'Your account is disabled. Please contact the studio.';
       return res.redirect('/login');
     }
 
+    // IMPORTANT CHANGE:
+    // Pending models ARE allowed to log in to complete application profile,
+    // but compliance paperwork routes remain gated behind ensureApprovedModel.
     req.session.user = { id: user.id, username: user.username, role: user.role, status: user.status };
 
     if (user.role === 'admin' || user.role === 'staff') return res.redirect('/studio-panel');
@@ -682,7 +842,7 @@ app.post(
       );
       const newUserId = stmt.lastID;
 
-      // Create (or update) the model profile immediately so admin can vet before approval.
+      // Create the model profile immediately so admin can vet before approval.
       await dbRun(
         `INSERT INTO model_profiles (user_id, email, headshot_path, fullbody_path, portfolio_url, bio, experience_level, application_submitted_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -699,7 +859,7 @@ app.post(
       );
 
       req.session.message =
-        'Application submitted. Your profile is pending review. You may log in to complete any additional details, but you will not be fully approved until the studio reviews your application.';
+        'Application submitted. You may log in to complete your profile and upload portfolio photos. Compliance paperwork is completed only after studio approval and prior to any filming.';
       return res.redirect('/login');
     } catch (err) {
       console.error('Register error:', err);
@@ -730,10 +890,9 @@ async function loadModelProfile(userId) {
   try {
     const profile = await dbGet('SELECT * FROM model_profiles WHERE user_id = ?', [userId]);
 
-    const documents = await dbAll(
-      'SELECT * FROM compliance_documents WHERE user_id = ? ORDER BY uploaded_at DESC',
-      [userId]
-    );
+    const documents = await dbAll('SELECT * FROM compliance_documents WHERE user_id = ? ORDER BY uploaded_at DESC', [
+      userId,
+    ]);
 
     const photos = await dbAll(
       'SELECT * FROM model_photos WHERE user_id = ? ORDER BY is_primary DESC, priority DESC, uploaded_at DESC',
@@ -768,20 +927,17 @@ app.get('/model/profile', ensureModel, async (req, res) => {
   res.render('model-profile', { profile, documents, photos, masterRelease, policies });
 });
 
-
 // ----------------------
 // SIGNATURE SETUP (Hybrid: typed-styled + drawn)
 // ----------------------
-app.get('/model/signature', ensureModel, async (req, res) => {
+// Compliance-gated: only after approval.
+app.get('/model/signature', ensureApprovedModel, async (req, res) => {
   const userId = req.session.user.id;
-  const sig = await dbGet(
-    `SELECT * FROM signatures WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`,
-    [userId]
-  );
+  const sig = await dbGet(`SELECT * FROM signatures WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, [userId]);
   res.render('model-signature', { signature: sig });
 });
 
-app.post('/model/signature', ensureModel, async (req, res) => {
+app.post('/model/signature', ensureApprovedModel, async (req, res) => {
   const userId = req.session.user.id;
   const { method, typed_name, typed_style, signature_data_url, initials_data_url } = req.body;
 
@@ -815,16 +971,7 @@ app.post('/model/signature', ensureModel, async (req, res) => {
     await dbRun(
       `INSERT INTO signatures (user_id, method, typed_name, typed_style, signature_png, initials_png, ip_address, user_agent)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        userId,
-        String(method),
-        (typed_name || '').trim() || null,
-        (typed_style || '').trim() || null,
-        sigFile,
-        initFile,
-        ip,
-        ua,
-      ]
+      [userId, String(method), (typed_name || '').trim() || null, (typed_style || '').trim() || null, sigFile, initFile, ip, ua]
     );
 
     req.session.message = 'Signature saved.';
@@ -836,15 +983,16 @@ app.post('/model/signature', ensureModel, async (req, res) => {
   }
 });
 
-
-app.get('/model/release', ensureModel, async (req, res) => {
+// Compliance-gated: only after approval.
+app.get('/model/release', ensureApprovedModel, async (req, res) => {
   const userId = req.session.user.id;
   const { profile, masterRelease } = await loadModelProfile(userId);
   res.render('model_master-release', { profile, masterRelease });
 });
 
 // FIXED: ensure userId + signed_name exist; save signature + timestamp (DB default) + IP + UA
-app.post('/model/release', ensureModel, async (req, res) => {
+// Compliance-gated: only after approval.
+app.post('/model/release', ensureApprovedModel, async (req, res) => {
   const userId = req.session.user.id;
   const { agree_master_release, signed_name } = req.body;
 
@@ -860,10 +1008,7 @@ app.post('/model/release', ensureModel, async (req, res) => {
   }
 
   try {
-    const sig = await dbGet(
-      `SELECT * FROM signatures WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`,
-      [userId]
-    );
+    const sig = await dbGet(`SELECT * FROM signatures WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, [userId]);
     if (!sig) {
       req.session.error = 'Please set up your signature before signing.';
       return res.redirect('/model/signature');
@@ -872,15 +1017,7 @@ app.post('/model/release', ensureModel, async (req, res) => {
     await dbRun(
       `INSERT INTO master_releases (user_id, signed_name, ip_address, user_agent, signature_id, signature_method, signature_png)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        userId,
-        name,
-        getClientIp(req),
-        req.headers['user-agent'] || '',
-        sig.id,
-        sig.method,
-        sig.signature_png,
-      ]
+      [userId, name, getClientIp(req), req.headers['user-agent'] || '', sig.id, sig.method, sig.signature_png]
     );
 
     req.session.message = 'Master release signed and saved.';
@@ -892,12 +1029,12 @@ app.post('/model/release', ensureModel, async (req, res) => {
   }
 });
 
-
 // Backwards-compat
-app.get('/model/profile/release', ensureModel, (req, res) => res.redirect('/model/release'));
-app.post('/model/profile/release', ensureModel, (req, res) => res.redirect(307, '/model/release'));
+app.get('/model/profile/release', ensureApprovedModel, (req, res) => res.redirect('/model/release'));
+app.post('/model/profile/release', ensureApprovedModel, (req, res) => res.redirect(307, '/model/release'));
 
-app.get('/model/scenes', ensureModel, async (req, res) => {
+// Scenes are effectively post-booking; gate behind approval.
+app.get('/model/scenes', ensureApprovedModel, async (req, res) => {
   const userId = req.session.user.id;
 
   try {
@@ -918,7 +1055,8 @@ app.get('/model/scenes', ensureModel, async (req, res) => {
   }
 });
 
-// 1. BASIC IDENTITY & CONTACT
+/// 1. BASIC IDENTITY & CONTACT
+// Allowed for pending models (application completion).
 app.post('/model/profile/basic', ensureModel, async (req, res) => {
   const userId = req.session.user.id;
 
@@ -985,17 +1123,22 @@ app.post('/model/profile/basic', ensureModel, async (req, res) => {
       );
     }
 
+    // ✅ Always sync booking profile after any save
+    await syncBookingProfileFromModel(userId);
+
     req.session.message = 'Identity details saved.';
-    res.redirect('/model/profile#identity');
+    return res.redirect('/model/profile#identity');
   } catch (err) {
     console.error('Error saving identity details:', err);
     req.session.error = 'Could not save identity details.';
-    res.redirect('/model/profile#identity');
+    return res.redirect('/model/profile#identity');
   }
 });
 
+
 // 2. COMPLIANCE DOCUMENT UPLOAD
-app.post('/model/profile/upload-doc', ensureModel, uploadDocument.single('document'), async (req, res) => {
+// Compliance-gated: only after approval.
+app.post('/model/profile/upload-doc', ensureApprovedModel, uploadDocument.single('document'), async (req, res) => {
   const userId = req.session.user.id;
   const { doc_type } = req.body;
 
@@ -1005,11 +1148,11 @@ app.post('/model/profile/upload-doc', ensureModel, uploadDocument.single('docume
   }
 
   try {
-    await dbRun(
-      `INSERT INTO compliance_documents (user_id, doc_type, filename)
-       VALUES (?, ?, ?)`,
-      [userId, doc_type || 'other', req.file.filename]
-    );
+    await dbRun(`INSERT INTO compliance_documents (user_id, doc_type, filename) VALUES (?, ?, ?)`, [
+      userId,
+      doc_type || 'other',
+      req.file.filename,
+    ]);
 
     req.session.message = 'Document uploaded.';
     res.redirect('/model/profile#docs');
@@ -1021,6 +1164,7 @@ app.post('/model/profile/upload-doc', ensureModel, uploadDocument.single('docume
 });
 
 // 2b. HEADSHOTS & PORTFOLIO PHOTOS
+// Allowed for pending models (application completion).
 app.post('/model/profile/upload-photo', ensureModel, uploadPhoto.single('photo'), async (req, res) => {
   const userId = req.session.user.id;
   const { caption, is_primary } = req.body;
@@ -1035,25 +1179,24 @@ app.post('/model/profile/upload-photo', ensureModel, uploadPhoto.single('photo')
       await dbRun('UPDATE model_photos SET is_primary = 0 WHERE user_id = ?', [userId]);
     }
 
-    await dbRun(
-      `INSERT INTO model_photos (user_id, filename, caption, is_primary)
-       VALUES (?, ?, ?, ?)`,
-      [userId, req.file.filename, caption || '', is_primary ? 1 : 0]
-    );
+    await dbRun(`INSERT INTO model_photos (user_id, filename, caption, is_primary) VALUES (?, ?, ?, ?)`, [
+      userId,
+      req.file.filename,
+      caption || '',
+      is_primary ? 1 : 0,
+    ]);
 
     if (is_primary) {
       const primaryPhoto = await dbGet(
-        `SELECT filename FROM model_photos
+        `SELECT filename
+         FROM model_photos
          WHERE user_id = ? AND is_primary = 1
          ORDER BY uploaded_at DESC
          LIMIT 1`,
         [userId]
       );
       if (primaryPhoto) {
-        await dbRun(`UPDATE model_profiles SET headshot_path = ? WHERE user_id = ?`, [
-          primaryPhoto.filename,
-          userId,
-        ]);
+        await dbRun(`UPDATE model_profiles SET headshot_path = ? WHERE user_id = ?`, [primaryPhoto.filename, userId]);
       }
     }
 
@@ -1067,7 +1210,8 @@ app.post('/model/profile/upload-photo', ensureModel, uploadPhoto.single('photo')
 });
 
 // 4. SAFETY, CONSENT & SCENE PREFERENCES
-app.post('/model/profile/policies', ensureModel, async (req, res) => {
+// Compliance-gated: only after approval.
+app.post('/model/profile/policies', ensureApprovedModel, async (req, res) => {
   const userId = req.session.user.id;
   const bool = (field) => req.body[field] === 'on';
 
@@ -1167,13 +1311,13 @@ app.post('/model/profile/policies', ensureModel, async (req, res) => {
       ]
     );
 
-
     // Portal-first: store full payload in JSON (prevents PDF checkbox glyph issues)
     const consentJson = JSON.stringify(payload);
-    await dbRun(
-      `UPDATE consent_policies SET consent_json = ?, consent_version = ? WHERE user_id = ?`,
-      [consentJson, 'v1.0-2026-01-20', userId]
-    );
+    await dbRun(`UPDATE consent_policies SET consent_json = ?, consent_version = ? WHERE user_id = ?`, [
+      consentJson,
+      'v1.0-2026-01-20',
+      userId,
+    ]);
 
     req.session.message = 'Safety & consent settings saved.';
     res.redirect('/model/profile#safety');
@@ -1194,6 +1338,11 @@ app.get('/studio-panel', ensureAdmin, async (req, res) => {
     const approvedModelsRow = await dbGet("SELECT COUNT(*) AS count FROM users WHERE role = 'model' AND status = 'approved'");
     const sceneCountRow = await dbGet('SELECT COUNT(*) AS count FROM scenes');
 
+    // Booking stats (safe even if you don’t show them yet in the EJS)
+    const bookingCountRow = await dbGet('SELECT COUNT(*) AS count FROM bookings');
+    const confirmedBookingCountRow = await dbGet("SELECT COUNT(*) AS count FROM bookings WHERE status = 'confirmed'");
+    const draftBookingCountRow = await dbGet("SELECT COUNT(*) AS count FROM bookings WHERE status = 'draft'");
+
     const recentModels = await dbAll(
       `SELECT id, username, email, status, created_at
        FROM users
@@ -1208,12 +1357,25 @@ app.get('/studio-panel', ensureAdmin, async (req, res) => {
         pendingModels: pendingModelsRow?.count || 0,
         approvedModels: approvedModelsRow?.count || 0,
         sceneCount: sceneCountRow?.count || 0,
+
+        bookingCount: bookingCountRow?.count || 0,
+        confirmedBookings: confirmedBookingCountRow?.count || 0,
+        draftBookings: draftBookingCountRow?.count || 0,
       },
       recentModels,
       role: req.session.user.role,
       username: req.session.user.username,
       isAuthenticated: true,
+
+      // Flash messages (if your templates use them)
+      message: req.session.message || null,
+      error: req.session.error || null,
     });
+
+    // Clear flash after render
+    req.session.message = null;
+    req.session.error = null;
+
   } catch (err) {
     console.error('Error loading studio panel:', err);
     req.session.error = 'Could not load studio panel.';
@@ -1246,13 +1408,215 @@ app.get('/studio-panel/models', ensureAdmin, async (req, res) => {
        ORDER BY u.created_at DESC`
     );
 
-    res.render('studio-models', { models });
+    res.render('studio-models', {
+      models,
+      role: req.session.user.role,
+      username: req.session.user.username,
+      isAuthenticated: true,
+      message: req.session.message || null,
+      error: req.session.error || null,
+    });
+
+    // Clear flash after render
+    req.session.message = null;
+    req.session.error = null;
+
   } catch (err) {
     console.error('Error loading model list:', err);
     req.session.error = 'Could not load model list.';
     res.redirect('/studio-panel');
   }
 });
+// ----------------------
+// STUDIO PANEL – BOOKINGS (ADMIN) – OPTION B
+// ----------------------
+
+// List all bookings
+app.get('/studio-panel/bookings', ensureAdmin, async (req, res) => {
+  try {
+    const bookings = await dbAll(
+      `SELECT b.*,
+              (SELECT COUNT(*) FROM booking_models bm WHERE bm.booking_id = b.id) AS model_count
+       FROM bookings b
+       ORDER BY b.created_at DESC`
+    );
+
+    res.render('studio-bookings', {
+      bookings,
+      role: req.session.user.role,
+      username: req.session.user.username,
+      isAuthenticated: true,
+      message: req.session.message || null,
+      error: req.session.error || null,
+    });
+
+    req.session.message = null;
+    req.session.error = null;
+
+  } catch (err) {
+    console.error('Bookings list error:', err);
+    req.session.error = 'Could not load bookings.';
+    res.redirect('/studio-panel');
+  }
+});
+
+// Create a new booking (draft)
+app.post('/studio-panel/bookings/new', ensureAdmin, async (req, res) => {
+  const title = (req.body.title || '').trim() || 'Untitled Booking';
+  const shoot_date = (req.body.shoot_date || '').trim() || null;
+  const location = (req.body.location || '').trim() || null;
+
+  try {
+    const stmt = await dbRun(
+      `INSERT INTO bookings (title, shoot_date, location, status)
+       VALUES (?, ?, ?, 'draft')`,
+      [title, shoot_date, location]
+    );
+
+    return res.redirect(`/studio-panel/bookings/${stmt.lastID}`);
+  } catch (err) {
+    console.error('Booking create error:', err);
+    req.session.error = 'Could not create booking.';
+    return res.redirect('/studio-panel/bookings');
+  }
+});
+
+// View booking details
+app.get('/studio-panel/bookings/:id', ensureAdmin, async (req, res) => {
+  const bookingId = parseInt(req.params.id, 10);
+  if (!bookingId) return res.redirect('/studio-panel/bookings');
+
+  try {
+    const booking = await dbGet(`SELECT * FROM bookings WHERE id = ? LIMIT 1`, [bookingId]);
+
+    if (!booking) {
+      req.session.error = 'Booking not found.';
+      return res.redirect('/studio-panel/bookings');
+    }
+
+    const models = await dbAll(
+      `SELECT u.id, u.username, u.status,
+              mp.legal_name, mp.preferred_name, mp.email,
+              bp.synced_at AS booking_synced_at
+       FROM booking_models bm
+       JOIN users u ON u.id = bm.user_id
+       LEFT JOIN model_profiles mp ON mp.user_id = u.id
+       LEFT JOIN booking_profiles bp ON bp.user_id = u.id
+       WHERE bm.booking_id = ?
+       ORDER BY u.username ASC`,
+      [bookingId]
+    );
+
+    // Compliance checklist per model (MUST exist in your app.js)
+    const modelChecks = [];
+    for (const m of models) {
+      const { checklist, requiredOk } = await getModelComplianceChecklist(m.id);
+      modelChecks.push({ userId: m.id, requiredOk, ...checklist });
+}
+
+
+    // Allow adding only approved models to bookings
+    const approvedModels = await dbAll(
+      `SELECT id, username
+       FROM users
+       WHERE role = 'model' AND status = 'approved'
+       ORDER BY username ASC`
+    );
+
+    res.render('studio-booking-view', {
+      booking,
+      models,
+      modelChecks,
+      approvedModels,
+      role: req.session.user.role,
+      username: req.session.user.username,
+      isAuthenticated: true,
+      message: req.session.message || null,
+      error: req.session.error || null,
+    });
+
+    req.session.message = null;
+    req.session.error = null;
+
+  } catch (err) {
+    console.error('Booking view error:', err);
+    req.session.error = 'Could not load booking.';
+    return res.redirect('/studio-panel/bookings');
+  }
+});
+
+// Add model to booking
+app.post('/studio-panel/bookings/:id/add-model', ensureAdmin, async (req, res) => {
+  const bookingId = parseInt(req.params.id, 10);
+  const userId = parseInt(req.body.user_id, 10);
+  const roleLabel = (req.body.role_label || 'performer').trim();
+
+  if (!bookingId || !userId) {
+    req.session.error = 'Invalid booking or model.';
+    return res.redirect('/studio-panel/bookings');
+  }
+
+  try {
+    const user = await dbGet(`SELECT id, role, status FROM users WHERE id = ? LIMIT 1`, [userId]);
+
+    if (!user || user.role !== 'model' || user.status !== 'approved') {
+      req.session.error = 'Only approved models may be added to bookings.';
+      return res.redirect(`/studio-panel/bookings/${bookingId}`);
+    }
+
+    // Keep booking profile in sync automatically (MUST exist in your app.js)
+    await syncBookingProfileFromModel(userId);
+
+    await dbRun(
+      `INSERT INTO booking_models (booking_id, user_id, role_label)
+       VALUES (?, ?, ?)
+       ON CONFLICT(booking_id, user_id) DO NOTHING`,
+      [bookingId, userId, roleLabel]
+    );
+
+    req.session.message = 'Model added to booking.';
+    return res.redirect(`/studio-panel/bookings/${bookingId}`);
+  } catch (err) {
+    console.error('Add model error:', err);
+    req.session.error = 'Could not add model to booking.';
+    return res.redirect(`/studio-panel/bookings/${bookingId}`);
+  }
+});
+
+// Confirm booking (hard compliance gate)
+app.post('/studio-panel/bookings/:id/confirm', ensureAdmin, async (req, res) => {
+  const bookingId = parseInt(req.params.id, 10);
+  if (!bookingId) return res.redirect('/studio-panel/bookings');
+
+  try {
+    const models = await dbAll(`SELECT user_id FROM booking_models WHERE booking_id = ?`, [bookingId]);
+
+    if (!models.length) {
+      req.session.error = 'Cannot confirm booking with no models attached.';
+      return res.redirect(`/studio-panel/bookings/${bookingId}`);
+    }
+
+    // Require ALL legal/compliance items before confirmation
+    for (const m of models) {
+      const { requiredOk } = await getModelComplianceChecklist(m.user_id);
+      if (!requiredOk) {
+        req.session.error =
+          'Cannot confirm booking: one or more models are missing required compliance (ID front/back, selfie with ID, master release, consent, W-9, and signature on file).';
+        return res.redirect(`/studio-panel/bookings/${bookingId}`);
+      }
+    }
+
+    await dbRun(`UPDATE bookings SET status = 'confirmed' WHERE id = ?`, [bookingId]);
+
+    req.session.message = 'Booking confirmed.';
+    return res.redirect(`/studio-panel/bookings/${bookingId}`);
+  } catch (err) {
+    console.error('Booking confirm error:', err);
+    req.session.error = 'Could not confirm booking.';
+    return res.redirect(`/studio-panel/bookings/${bookingId}`);
+  }
+});
+
 
 // ----------------------
 // ADMIN: Documentation Map (what's required / missing per model)
@@ -1291,7 +1655,11 @@ app.get('/studio-panel/docs', ensureAdmin, async (req, res) => {
           applicantPhotos: Boolean(m.headshot_path || m.fullbody_path),
           signature: Boolean(sig),
           masterRelease: Boolean(mr),
-          identity: hasAny(['id_primary_front','id_primary_back','id_secondary','selfie_with_id']),
+          identity:
+            has('id_primary_front') &&
+            has('id_primary_back') &&
+            has('selfie_with_id'),
+
           w9: has('w9'),
           sti: has('sti_test'),
           consent: Boolean(consent && (consent.consent_json || 0)),
@@ -1307,8 +1675,6 @@ app.get('/studio-panel/docs', ensureAdmin, async (req, res) => {
     return res.redirect('/studio-panel');
   }
 });
-
-
 
 app.get('/studio-panel/models/:id', ensureAdmin, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
@@ -1353,10 +1719,9 @@ app.get('/studio-panel/models/:id/identity', ensureAdmin, async (req, res) => {
     }
 
     const profile = await dbGet('SELECT * FROM model_profiles WHERE user_id = ?', [userId]);
-    const documents = await dbAll(
-      'SELECT * FROM compliance_documents WHERE user_id = ? ORDER BY uploaded_at DESC',
-      [userId]
-    );
+    const documents = await dbAll('SELECT * FROM compliance_documents WHERE user_id = ? ORDER BY uploaded_at DESC', [
+      userId,
+    ]);
     const release = await dbGet(
       'SELECT * FROM master_releases WHERE user_id = ? ORDER BY signed_at DESC LIMIT 1',
       [userId]
@@ -1390,6 +1755,9 @@ app.post('/studio-panel/models/:id/status', ensureAdmin, async (req, res) => {
 
   try {
     await dbRun('UPDATE users SET status = ? WHERE id = ?', [newStatus, userId]);
+    if (newStatus === 'approved') {
+  await syncBookingProfileFromModel(userId);
+}
     req.session.message = 'Status updated.';
     res.redirect(`/studio-panel/models/${userId}`);
   } catch (err) {
@@ -1482,18 +1850,22 @@ function getMailTransport() {
 }
 
 function safePdfBase(name) {
-  return String(name || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9_\-]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 60) || 'document';
+  return (
+    String(name || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9_\-]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 60) || 'document'
+  );
 }
 
 function nowStamp() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(
+    d.getMinutes()
+  )}${pad(d.getSeconds())}`;
 }
 
 async function renderViewToHtml(viewName, locals) {
@@ -1507,7 +1879,7 @@ async function renderViewToHtml(viewName, locals) {
 
 async function htmlToPdfBuffer(html) {
   if (!puppeteer) {
-    throw new Error("Puppeteer is not installed. Run: npm i puppeteer");
+    throw new Error('Puppeteer is not installed. Run: npm i puppeteer');
   }
 
   const browser = await puppeteer.launch({
@@ -1541,8 +1913,12 @@ async function generatePdfForModelDoc({ docKind, userId }) {
   }
 
   const profile = await dbGet('SELECT * FROM model_profiles WHERE user_id = ?', [userId]);
-  const documents = await dbAll('SELECT * FROM compliance_documents WHERE user_id = ? ORDER BY uploaded_at DESC', [userId]);
-  const release = await dbGet('SELECT * FROM master_releases WHERE user_id = ? ORDER BY signed_at DESC LIMIT 1', [userId]);
+  const documents = await dbAll('SELECT * FROM compliance_documents WHERE user_id = ? ORDER BY uploaded_at DESC', [
+    userId,
+  ]);
+  const release = await dbGet('SELECT * FROM master_releases WHERE user_id = ? ORDER BY signed_at DESC LIMIT 1', [
+    userId,
+  ]);
   const policies = await dbGet('SELECT * FROM consent_policies WHERE user_id = ? LIMIT 1', [userId]);
 
   let viewName = '';

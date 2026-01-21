@@ -41,12 +41,17 @@
       <%
         const hasRelease = !!masterRelease;
         const hasConsent = !!policies;
+
         const headshot = profile?.headshot_path ? `/uploads/photos/${profile.headshot_path}` : null;
+
         const preferredName = (profile?.preferred_name || '').trim();
         const legalName = (profile?.legal_name || '').trim();
         const dob = (profile?.date_of_birth || '').trim();
 
         const status = (user?.status || '').toLowerCase();
+
+        // Signature preview (if stored on master release)
+        const sigFile = masterRelease?.signature_png ? `/uploads/signatures/${masterRelease.signature_png}` : null;
       %>
 
       <!-- Account Approval Controls -->
@@ -99,7 +104,7 @@
 
       <div class="grid-2" style="display:grid; grid-template-columns: 1fr 1fr; gap: 18px;">
         <div class="panel-inner">
-          <h3 style="margin-top:0;">Identity & Account</h3>
+          <h3 style="margin-top:0;">Identity &amp; Account</h3>
 
           <table class="kv-table">
             <tr>
@@ -150,9 +155,16 @@
               Print Identity Summary
             </a>
 
+            <a class="btn secondary" href="/studio-panel/models/<%= user.id %>/identity.pdf" target="_blank" rel="noopener">
+              Download Identity PDF
+            </a>
+
             <% if (hasRelease) { %>
               <a class="btn primary" href="/studio-panel/models/<%= user.id %>/master-release" target="_blank" rel="noopener">
                 Print Master Release
+              </a>
+              <a class="btn secondary" href="/studio-panel/models/<%= user.id %>/master-release.pdf" target="_blank" rel="noopener">
+                Download Release PDF
               </a>
             <% } %>
 
@@ -160,23 +172,71 @@
               <a class="btn primary" href="/studio-panel/models/<%= user.id %>/consent" target="_blank" rel="noopener">
                 Print Consent &amp; Safety
               </a>
+              <a class="btn secondary" href="/studio-panel/models/<%= user.id %>/consent.pdf" target="_blank" rel="noopener">
+                Download Consent PDF
+              </a>
             <% } %>
           </div>
 
-          <!-- NEW: Email Identity PDF -->
+          <!-- Email PDFs (matches backend behavior: always includes model email(s) if on file + MAIL_TO_STUDIO; optional extra "to") -->
           <div class="panel-inner" style="margin-top: 14px;">
-            <h4 style="margin:0 0 8px;">Email Identity PDF</h4>
-            <form action="/studio-panel/models/<%= user.id %>/email/identity" method="POST" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-              <label style="display:flex; align-items:center; gap:8px; font-size:0.9rem; color:#b5b5cf;">
-                <input type="checkbox" name="send_to_model" value="yes" />
-                Also email to model address (if on file)
-              </label>
-              <button type="submit" class="btn secondary">Email Identity PDF</button>
-            </form>
-            <div style="margin-top:6px; font-size:0.8rem; color:#9aa0b5;">
-              Sends to studio archive (<code>MAIL_TO_STUDIO</code>) and optionally the model email.
+            <h4 style="margin:0 0 8px;">Email PDFs</h4>
+
+            <div style="margin: 0 0 10px; font-size:0.85rem; color:#9aa0b5; line-height:1.35;">
+              Emails go to: model account email (if present), model profile email (if present), and studio archive (<code>MAIL_TO_STUDIO</code> if set).
+              You can add an additional recipient below.
+            </div>
+
+            <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+              <div style="flex:1; min-width:260px;">
+                <label style="display:block; font-size:0.85rem; color:#b5b5cf; margin-bottom:6px;">
+                  Additional recipient (optional)
+                </label>
+                <input
+                  class="input"
+                  type="email"
+                  name="to_shared"
+                  id="to_shared"
+                  placeholder="someone@example.com"
+                  style="width:100%; padding:0.55rem 0.65rem;"
+                />
+                <div style="margin-top:6px; font-size:0.78rem; color:#9aa0b5;">
+                  If provided, it will be included in addition to model + studio archive.
+                </div>
+              </div>
+
+              <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <form action="/studio-panel/models/<%= user.id %>/email/identity" method="POST"
+                      onsubmit="(function(f){var v=document.getElementById('to_shared')?.value||''; if(v.trim()){var i=document.createElement('input'); i.type='hidden'; i.name='to'; i.value=v.trim(); f.appendChild(i);} })(this);">
+                  <button type="submit" class="btn secondary">Email Identity PDF</button>
+                </form>
+
+                <form action="/studio-panel/models/<%= user.id %>/email/master-release" method="POST"
+                      <%= hasRelease ? '' : 'style="opacity:0.55; pointer-events:none;"' %>
+                      onsubmit="(function(f){var v=document.getElementById('to_shared')?.value||''; if(v.trim()){var i=document.createElement('input'); i.type='hidden'; i.name='to'; i.value=v.trim(); f.appendChild(i);} })(this);">
+                  <button type="submit" class="btn secondary"><%= hasRelease ? 'Email Release PDF' : 'Release Not Signed' %></button>
+                </form>
+
+                <form action="/studio-panel/models/<%= user.id %>/email/consent" method="POST"
+                      <%= hasConsent ? '' : 'style="opacity:0.55; pointer-events:none;"' %>
+                      onsubmit="(function(f){var v=document.getElementById('to_shared')?.value||''; if(v.trim()){var i=document.createElement('input'); i.type='hidden'; i.name='to'; i.value=v.trim(); f.appendChild(i);} })(this);">
+                  <button type="submit" class="btn secondary"><%= hasConsent ? 'Email Consent PDF' : 'Consent Not Saved' %></button>
+                </form>
+              </div>
             </div>
           </div>
+
+          <% if (sigFile) { %>
+            <div class="panel-inner" style="margin-top: 14px;">
+              <h4 style="margin:0 0 8px;">Signature on File</h4>
+              <a href="<%= sigFile %>" target="_blank" rel="noopener">
+                <img src="<%= sigFile %>" alt="Signature" style="max-width: 520px; width:100%; max-height: 180px; object-fit: contain; border-radius: 14px;">
+              </a>
+              <div style="margin-top:6px; font-size:0.8rem; color:#9aa0b5;">
+                Stored privately; click to open full-size.
+              </div>
+            </div>
+          <% } %>
         </div>
 
         <div class="panel-inner">
@@ -289,11 +349,11 @@
             </tr>
             <tr>
               <th>Hard Limits</th>
-              <td><%= policies.consent_hard_limits || '—' %></td>
+              <td style="white-space:pre-wrap;"><%= policies.consent_hard_limits || '—' %></td>
             </tr>
             <tr>
               <th>Soft Limits</th>
-              <td><%= policies.consent_soft_limits || '—' %></td>
+              <td style="white-space:pre-wrap;"><%= policies.consent_soft_limits || '—' %></td>
             </tr>
             <tr>
               <th>Contractor Ack</th>
@@ -308,6 +368,10 @@
               <td><%= policies.created_at || '—' %></td>
             </tr>
           </table>
+
+          <div style="margin-top:10px; font-size:0.8rem; color:#9aa0b5;">
+            Tip: Use the “Print Consent &amp; Safety” / “Download Consent PDF” buttons above for the complete record.
+          </div>
         <% } %>
       </div>
 
