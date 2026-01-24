@@ -9,7 +9,7 @@ const session = require('express-session');
 const { dbRun, dbGet, dbAll, ensureColumn, initDb } = require('./db');
 const { makeAudit } = require('./lib/audit');
 const { attachSessionToLocals } = require('./middleware/locals');
-const { sendMailOrLog } = require('./lib/mailer'); // ✅ NEW: for /__mail_test
+const { sendMailOrLog } = require('./lib/mailer');
 
 // Routers
 const publicRoutes = require('./routes/public');
@@ -19,7 +19,7 @@ const adminRoutes = require('./routes/admin');
 const secureRoutes = require('./routes/secure');
 const packageAckRoutes = require('./routes/package-ack');
 const docRoutes = require('./routes/doc');
-const inviteRoutes = require('./routes/invite'); // ✅ NEW
+const inviteRoutes = require('./routes/invite');
 
 const app = express();
 
@@ -45,14 +45,6 @@ const STUDIO_EMAILS = Object.freeze({
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Respect TRUST_PROXY flag
-const TRUST_PROXY = String(process.env.TRUST_PROXY || 'false').toLowerCase() === 'true';
-if (TRUST_PROXY) {
-  app.set('trust proxy', 1);
-} else {
-  app.set('trust proxy', false);
-}
-
 // Minimal request logging
 app.use((req, res, next) => {
   const started = Date.now();
@@ -66,20 +58,78 @@ app.use((req, res, next) => {
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// Cookie secure behavior
-const COOKIE_SECURE = String(process.env.COOKIE_SECURE || '').trim();
-const cookieSecure =
-  COOKIE_SECURE.length > 0 ? COOKIE_SECURE.toLowerCase() === 'true' : process.env.NODE_ENV === 'production';
+// ----------------------
+// SESSION / COOKIE CONFIG
+// ----------------------
+const COOKIE_SECURE_ENV = String(process.env.COOKIE_SECURE || '').trim().toLowerCase();
+
+// NOTE:
+// Your PM2 output showed node env "N/A", meaning NODE_ENV may be unset.
+// So we cannot rely on isProd alone.
+const envNodeEnv = String(process.env.NODE_ENV || '').trim().toLowerCase();
+const isProd = envNodeEnv === 'production';
+
+const cookieSecure = COOKIE_SECURE_ENV.length > 0 ? COOKIE_SECURE_ENV === 'true' : isProd;
+
+// Optional: cookie max age in days
+const COOKIE_MAX_AGE_DAYS = parseInt(process.env.COOKIE_MAX_AGE_DAYS || '7', 10);
+const cookieMaxAgeMs =
+  Number.isFinite(COOKIE_MAX_AGE_DAYS) && COOKIE_MAX_AGE_DAYS > 0
+    ? COOKIE_MAX_AGE_DAYS * 24 * 60 * 60 * 1000
+    : 7 * 24 * 60 * 60 * 1000;
+
+// ----------------------
+// TRUST PROXY (CRITICAL BEHIND NGINX/HTTPS)
+// ----------------------
+// If cookieSecure is true (HTTPS cookie), we MUST trust proxy,
+// otherwise req.secure can be wrong and sessions can behave inconsistently.
+const envTrustProxy = String(process.env.TRUST_PROXY || '').trim().toLowerCase();
+
+// Default behavior:
+// - If COOKIE_SECURE is true => trust proxy ON (required behind Nginx)
+// - else => trust proxy depends on NODE_ENV production
+let trustProxyEnabled = cookieSecure ? true : isProd;
+
+// Allow explicit override
+if (envTrustProxy === 'true') trustProxyEnabled = true;
+if (envTrustProxy === 'false') trustProxyEnabled = false;
+
+app.set('trust proxy', trustProxyEnabled ? 1 : false);
+
+// ----------------------
+// ✅ PERSISTENT SESSION STORE (SQLite)
+// ----------------------
+const SQLiteStore = require('connect-sqlite3')(session);
+
+// Put session DB inside a runtime dir
+const runtimeDir = path.join(__dirname, 'runtime');
+if (!fs.existsSync(runtimeDir)) fs.mkdirSync(runtimeDir, { recursive: true });
+
+const sessionDbPath = path.join(runtimeDir, 'sessions.sqlite');
 
 app.use(
   session({
+    // ✅ HARD-CODE cookie name so you can VERIFY you're running THIS build.
+    // If you still see connect.sid, you are NOT running this file in production.
+    name: 'lumennyx.sid',
+
     secret: process.env.SESSION_SECRET || 'dev-secret-change-me',
     resave: false,
     saveUninitialized: false,
+
+    // IMPORTANT: behind proxy when using secure cookies
+    proxy: true,
+
+    store: new SQLiteStore({
+      db: path.basename(sessionDbPath),
+      dir: runtimeDir,
+    }),
+
     cookie: {
       httpOnly: true,
       sameSite: 'lax',
       secure: cookieSecure,
+      maxAge: cookieMaxAgeMs,
     },
   })
 );
@@ -144,8 +194,31 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
 // ============================================================
-// ✅ DEBUG: SMTP + mail sending test
-// Visit: http://localhost:3001/__mail_test?to=you@domain.com
+// DEBUG: session + cookie inspection
+// Visit: /__session_debug
+// ============================================================
+app.get('/__session_debug', (req, res) => {
+  res.json({
+    ok: true,
+    now: new Date().toISOString(),
+    nodeEnv: process.env.NODE_ENV || null,
+    trustProxy: app.get('trust proxy'),
+    reqSecure: !!req.secure,
+    xForwardedProto: req.headers['x-forwarded-proto'] || null,
+    cookieSecure,
+    sessionCookieName: 'lumennyx.sid',
+    sessionId: req.sessionID || null,
+    hasSession: !!req.session,
+    ageConfirmed: !!req.session?.ageConfirmed,
+    user: req.session?.user
+      ? { id: req.session.user.id, username: req.session.user.username, role: req.session.user.role }
+      : null,
+  });
+});
+
+// ============================================================
+// DEBUG: SMTP + mail sending test
+// Visit: /__mail_test?to=you@domain.com
 // ============================================================
 app.get('/__mail_test', async (req, res) => {
   try {
@@ -153,7 +226,7 @@ app.get('/__mail_test', async (req, res) => {
     if (!to) return res.status(400).json({ ok: false, error: 'Missing ?to= email' });
 
     const subject = `Mail test (${new Date().toISOString()})`;
-    const text = `This is a test email from LumenNyx Studios local server.\n\nIf you received this, SMTP is working.`;
+    const text = `This is a test email from LumenNyx Studios server.\n\nIf you received this, SMTP is working.`;
 
     const result = await sendMailOrLog({ to, subject, text });
     return res.status(result.ok ? 200 : 500).json(result);
@@ -168,7 +241,7 @@ app.get('/__mail_test', async (req, res) => {
 // ----------------------
 app.use('/', publicRoutes(ctx));
 app.use('/', authRoutes(ctx));
-app.use('/', inviteRoutes(ctx)); // ✅ NEW (token accept + account creation)
+app.use('/', inviteRoutes(ctx));
 app.use('/', modelRoutes(ctx));
 app.use('/', adminRoutes(ctx));
 app.use('/', secureRoutes(ctx));
@@ -176,18 +249,15 @@ app.use('/', packageAckRoutes(ctx));
 app.use('/', docRoutes(ctx));
 
 // 404
-app.use((req, res) => {
-  return res.status(404).render('error', { message: 'Page not found.' });
-});
+app.use((req, res) => res.status(404).render('error', { message: 'Page not found.' }));
 
 // Error handler
 app.use((err, req, res, _next) => {
   console.error('UNHANDLED ERROR:', err);
-
   if (res.headersSent) return;
 
-  const isProd = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
-  const msg = isProd ? 'Server error.' : (err && err.message) ? err.message : 'Server error.';
+  const prod = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+  const msg = prod ? 'Server error.' : err?.message || 'Server error.';
 
   try {
     return res.status(500).render('error', { message: msg });
@@ -203,11 +273,8 @@ const PORT = parseInt(process.env.PORT || '3001', 10);
 
 (async () => {
   try {
-    if (typeof dbApi.initDb === 'function') {
-      await dbApi.initDb();
-    }
+    if (typeof dbApi.initDb === 'function') await dbApi.initDb();
 
-    // ✅ Log SMTP config presence (not password)
     console.log('MAIL CONFIG =>', {
       SMTP_HOST: process.env.SMTP_HOST || null,
       SMTP_PORT: process.env.SMTP_PORT || null,
@@ -218,9 +285,17 @@ const PORT = parseInt(process.env.PORT || '3001', 10);
       MAIL_TO_MODELS_APPLY: process.env.MAIL_TO_MODELS_APPLY || null,
     });
 
-    app.listen(PORT, () => {
-      console.log(`Server listening on port ${PORT}`);
+    console.log('SESSION CONFIG =>', {
+      nodeEnv: process.env.NODE_ENV || null,
+      trustProxy: app.get('trust proxy'),
+      cookieSecure,
+      sameSite: 'lax',
+      cookieMaxAgeDays: Math.round(cookieMaxAgeMs / (24 * 60 * 60 * 1000)),
+      sessionDbPath,
+      cookieName: 'lumennyx.sid',
     });
+
+    app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
   } catch (e) {
     console.error('Fatal startup error:', e);
     process.exit(1);
