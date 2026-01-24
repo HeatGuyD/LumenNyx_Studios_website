@@ -1,0 +1,111 @@
+<!-- FILE: views/studio-applications.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Applications – LumenNyx Studios</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body class="model-portal">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/studio-panel" class="brand-link">
+        <span class="brand-mark">
+          <img src="/img/lumennyx-mark.png" alt="LumenNyx Studios logo">
+        </span>
+        <span class="brand-text">LUMENNYX STUDIOS</span>
+      </a>
+
+      <nav class="main-nav">
+        <a href="/studio-panel">Studio Panel</a>
+        <a href="/studio-panel/models">Models</a>
+        <a href="/studio-panel/applications" class="active">Applications</a>
+        <a href="/studio-panel/scenes">Scenes</a>
+        <a href="/2257">2257</a>
+        <form action="/logout" method="POST" style="display:inline;">
+          <button type="submit" class="btn secondary" style="padding:0.3rem 0.9rem;font-size:0.75rem;">
+            Logout
+          </button>
+        </form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-wrapper">
+    <section class="portal-section">
+      <h3>Model Applications</h3>
+      <p class="portal-note">
+        These are pre-registration submissions (vetting). Approving here does not automatically create a user account unless you add that workflow later.
+      </p>
+
+      <% if (message) { %>
+        <div class="alert success"><%= message %></div>
+      <% } %>
+      <% if (error) { %>
+        <div class="alert error"><%= error %></div>
+      <% } %>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top: 12px;">
+        <a class="btn secondary <%= filterStatus==='pending' ? 'active' : '' %>" href="/studio-panel/applications?status=pending">Pending</a>
+        <a class="btn secondary <%= filterStatus==='approved' ? 'active' : '' %>" href="/studio-panel/applications?status=approved">Approved</a>
+        <a class="btn secondary <%= filterStatus==='rejected' ? 'active' : '' %>" href="/studio-panel/applications?status=rejected">Rejected</a>
+        <a class="btn secondary <%= filterStatus==='all' ? 'active' : '' %>" href="/studio-panel/applications?status=all">All</a>
+      </div>
+    </section>
+
+    <section class="portal-section">
+      <h3>Submissions</h3>
+
+      <% if (!applications || applications.length === 0) { %>
+        <p>No applications found for this filter.</p>
+      <% } else { %>
+        <div class="documents-list">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Submitted</th>
+                <th>Stage Name</th>
+                <th>Email</th>
+                <th>Gender</th>
+                <th>Status</th>
+                <th>Uploads</th>
+                <th>Open</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% applications.forEach(function(a) { %>
+                <tr>
+                  <td><%= a.id %></td>
+                  <td style="white-space:nowrap;"><%= a.created_at || '—' %></td>
+                  <td><%= a.stage_name %></td>
+                  <td><%= a.email %></td>
+                  <td><%= a.gender %></td>
+                  <td><%= a.status || 'pending' %></td>
+                  <td style="white-space:nowrap;">
+                    <% if (a.headshot_filename) { %>
+                      Headshot
+                    <% } else { %>
+                      —
+                    <% } %>
+                    <% if (a.photos_count && a.photos_count > 0) { %>
+                      / <%= a.photos_count %> photos
+                    <% } %>
+                  </td>
+                  <td>
+                    <a class="btn secondary" style="font-size:0.8rem;padding:0.25rem 0.8rem;"
+                       href="/studio-panel/applications/<%= a.id %>">
+                      View
+                    </a>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </section>
+  </main>
+</body>
+</html>

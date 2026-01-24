@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Booking – LumenNyx Studios</title>
+  <title>LumenNyx Studios – Booking</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/css/style.css">
 </head>
@@ -10,16 +10,19 @@
   <header class="site-header">
     <div class="site-header-inner">
       <a href="/" class="brand-link">
-        <span class="brand-mark"><img src="/img/lumennyx-mark.png" alt="LumenNyx logo"></span>
+        <span class="brand-mark"><img src="/img/lumennyx-mark.png" alt="LumenNyx Studios logo"></span>
         <span class="brand-text">LUMENNYX STUDIOS</span>
       </a>
       <nav class="main-nav">
-        <a href="/model/profile">Model Portal</a>
-        <a href="/model/bookings" class="active">My Bookings</a>
-        <a href="/model/signature">Signature</a>
-        <a href="/model/release">Release</a>
+        <a href="/studio-panel">Studio Panel</a>
+        <a href="/studio-panel/bookings" class="active">Bookings</a>
+        <a href="/studio-panel/models">Models</a>
+        <a href="/studio-panel/docs">Docs Map</a>
         <form action="/logout" method="POST" style="display:inline;">
-          <button class="btn secondary" style="padding:0.25rem 0.9rem;font-size:0.8rem;">Logout</button>
+          <% if (typeof csrfToken !== 'undefined' && csrfToken) { %>
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <% } %>
+          <button type="submit" class="btn secondary" style="padding:0.3rem 0.9rem;font-size:0.75rem;">Logout</button>
         </form>
       </nav>
     </div>
@@ -27,50 +30,203 @@
 
   <main class="page-wrapper">
     <section class="portal-section">
-      <h2><%= booking.title %></h2>
+      <h2>Booking: <%= booking.title %></h2>
       <p class="portal-note">
         Status: <strong><%= booking.status %></strong>
         <% if (booking.shoot_date) { %> • Date: <strong><%= booking.shoot_date %></strong><% } %>
         <% if (booking.location) { %> • Location: <strong><%= booking.location %></strong><% } %>
       </p>
 
-      <h3>Booking Profile (Auto-filled)</h3>
-      <p class="portal-note">This information is pulled from your application/profile. Update your profile if anything changes.</p>
+      <% if (message) { %><div class="alert success"><%= message %></div><% } %>
+      <% if (error) { %><div class="alert error"><%= error %></div><% } %>
+
+      <div class="policies-grid" style="margin-top:1rem;">
+        <div class="policies-card">
+          <h4>Compliance Gate</h4>
+          <p>
+            <% if (allRequiredOk) { %>
+              All attached models meet required compliance items. Booking can be marked <strong>ready</strong> or <strong>confirmed</strong>.
+            <% } else { %>
+              One or more models are missing required compliance items. Booking cannot be confirmed.
+            <% } %>
+          </p>
+          <p class="muted" style="margin-top:0.6rem;">
+            Required: signature, master release, consent, ID front/back, selfie+ID, W-9.
+          </p>
+        </div>
+
+        <div class="policies-card">
+          <h4>Compliance Package (Audit)</h4>
+          <% if (packageInfo) { %>
+            <div class="muted">Generated:</div> <%= packageInfo.generated_at || '—' %><br/>
+            <div class="muted">Hash (SHA-256):</div>
+            <div style="word-break:break-all; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;">
+              <%= packageInfo.package_hash || '—' %>
+            </div>
+            <% if (packageInfo.package_filename) { %>
+              <div style="margin-top:8px;">
+                <a class="btn secondary" href="/studio-panel/bookings/<%= booking.id %>/package/download" style="padding:0.25rem 0.7rem;font-size:0.8rem;">Download Package</a>
+              </div>
+            <% } %>
+          <% } else { %>
+            <p class="muted">No package generated yet.</p>
+          <% } %>
+        </div>
+
+        <div class="policies-card">
+          <h4>Scene Link</h4>
+          <% if (sceneInfo) { %>
+            <div class="muted">Scene ID:</div> <%= sceneInfo.id %><br/>
+            <div class="muted">Scene Title:</div> <%= sceneInfo.title %><br/>
+            <div style="margin-top:8px;">
+              <a class="btn secondary" href="/studio-panel/scenes/<%= sceneInfo.id %>" style="padding:0.25rem 0.7rem;font-size:0.8rem;">Open Scene</a>
+            </div>
+          <% } else { %>
+            <p class="muted">No scene created from this booking yet.</p>
+          <% } %>
+        </div>
+
+        <div class="policies-card">
+          <h4>Internal Notes</h4>
+          <p><%= booking.notes || '—' %></p>
+        </div>
+      </div>
+
+      <h3 style="margin-top:1.2rem;">Actions</h3>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <form action="/studio-panel/bookings/<%= booking.id %>/package/generate" method="POST" style="display:inline;">
+          <% if (typeof csrfToken !== 'undefined' && csrfToken) { %>
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <% } %>
+          <button type="submit" class="btn secondary" <%= allRequiredOk ? '' : 'disabled' %>>
+            Generate Compliance Package
+          </button>
+        </form>
+
+        <form action="/studio-panel/bookings/<%= booking.id %>/create-scene" method="POST" style="display:inline;">
+          <% if (typeof csrfToken !== 'undefined' && csrfToken) { %>
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <% } %>
+          <button type="submit" class="btn secondary" <%= (booking.status === 'confirmed' || booking.status === 'completed') ? '' : 'disabled' %>>
+            Create Scene from Booking
+          </button>
+        </form>
+
+        <a class="btn secondary" href="/studio-panel/bookings">Back to Bookings</a>
+      </div>
+      <p class="field-help" style="margin-top:0.6rem;">
+        “Generate Compliance Package” requires all models to be compliant. “Create Scene” is enabled after booking is confirmed.
+      </p>
+
+      <h3 style="margin-top:1.2rem;">Models & Compliance</h3>
 
       <div class="documents-list">
         <table>
+          <thead>
+            <tr>
+              <th>Model</th>
+              <th>Booking Profile</th>
+              <th>Required Compliance</th>
+              <th>Docs Shortcut</th>
+            </tr>
+          </thead>
           <tbody>
-            <tr><th>Legal Name</th><td><%= bookingProfile?.legal_name || '—' %></td></tr>
-            <tr><th>Preferred Name</th><td><%= bookingProfile?.preferred_name || '—' %></td></tr>
-            <tr><th>Aliases</th><td><%= bookingProfile?.aliases || '—' %></td></tr>
-            <tr><th>DOB</th><td><%= bookingProfile?.date_of_birth || '—' %></td></tr>
-            <tr><th>Email</th><td><%= bookingProfile?.email || '—' %></td></tr>
-            <tr><th>Phone</th><td><%= bookingProfile?.phone || '—' %></td></tr>
+            <% (modelCompliance || []).forEach(function(item){
+              const m = item.model;
+              const c = item.checklist || {};
+              const ok = item.requiredOk;
+            %>
+              <tr>
+                <td>
+                  <strong><%= m.username %></strong><br/>
+                  <span class="muted"><%= m.preferred_name || m.legal_name || '—' %></span>
+                </td>
+                <td>
+                  <div class="muted">Email:</div> <%= m.email || '—' %><br/>
+                  <div class="muted">Phone:</div> <%= m.phone || '—' %>
+                </td>
+                <td>
+                  <div class="status-pill <%= ok ? 'ok' : 'missing' %>" style="display:inline-flex;">
+                    <span class="label">Overall:</span>
+                    <span><%= ok ? 'Ready' : 'Missing items' %></span>
+                  </div>
+                  <div style="margin-top:8px; font-size:0.92rem;">
+                    Sig: <%= c.signature ? 'Yes' : 'No' %> •
+                    Release: <%= c.masterRelease ? 'Yes' : 'No' %> •
+                    Consent: <%= c.consent ? 'Yes' : 'No' %><br/>
+                    ID Front: <%= c.id_primary_front ? 'Yes' : 'No' %> •
+                    ID Back: <%= c.id_primary_back ? 'Yes' : 'No' %> •
+                    Selfie+ID: <%= c.selfie_with_id ? 'Yes' : 'No' %> •
+                    W-9: <%= c.w9 ? 'Yes' : 'No' %>
+                  </div>
+                </td>
+                <td>
+                  <a class="btn secondary" href="/studio-panel/models/<%= m.id %>" style="padding:0.25rem 0.7rem;font-size:0.8rem;">Open Model</a>
+                  <a class="btn secondary" href="/studio-panel/docs" style="padding:0.25rem 0.7rem;font-size:0.8rem; margin-top:6px;">Docs Map</a>
+                </td>
+              </tr>
+            <% }) %>
           </tbody>
         </table>
       </div>
 
-      <h3 style="margin-top:1.2rem;">Compliance Checklist (Required before confirmation)</h3>
+      <h3 style="margin-top:1.2rem;">Update Booking Status</h3>
+      <form action="/studio-panel/bookings/<%= booking.id %>/status" method="POST" class="portal-form">
+        <% if (typeof csrfToken !== 'undefined' && csrfToken) { %>
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <% } %>
 
-      <% const c = compliance?.checklist || {}; %>
-      <div class="status-summary">
-        <div class="status-pill <%= c.signature ? 'ok' : 'missing' %>"><span class="label">Signature</span><span><%= c.signature ? 'On file' : 'Missing' %></span></div>
-        <div class="status-pill <%= c.masterRelease ? 'ok' : 'missing' %>"><span class="label">Master Release</span><span><%= c.masterRelease ? 'Signed' : 'Missing' %></span></div>
-        <div class="status-pill <%= c.consent ? 'ok' : 'missing' %>"><span class="label">Consent</span><span><%= c.consent ? 'Saved' : 'Missing' %></span></div>
-        <div class="status-pill <%= (c.id_primary_front && c.id_primary_back && c.selfie_with_id) ? 'ok' : 'missing' %>"><span class="label">IDs</span><span><%= (c.id_primary_front && c.id_primary_back && c.selfie_with_id) ? 'Complete' : 'Missing' %></span></div>
-        <div class="status-pill <%= c.w9 ? 'ok' : 'missing' %>"><span class="label">W-9</span><span><%= c.w9 ? 'Uploaded' : 'Missing' %></span></div>
-      </div>
+        <label>
+          Status
+          <select name="status" required>
+            <% const s = booking.status; %>
+            <option value="draft" <%= s==='draft'?'selected':'' %>>draft</option>
+            <option value="pending_docs" <%= s==='pending_docs'?'selected':'' %>>pending_docs</option>
+            <option value="ready" <%= s==='ready'?'selected':'' %>>ready</option>
+            <option value="confirmed" <%= s==='confirmed'?'selected':'' %>>confirmed</option>
+            <option value="completed" <%= s==='completed'?'selected':'' %>>completed</option>
+            <option value="cancelled" <%= s==='cancelled'?'selected':'' %>>cancelled</option>
+          </select>
+        </label>
 
-      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:1rem;">
-        <a class="btn secondary" href="/model/profile#docs">Upload IDs / Docs</a>
-        <a class="btn secondary" href="/model/signature">Signature</a>
-        <a class="btn secondary" href="/model/release">Master Release</a>
-        <a class="btn secondary" href="/model/profile#safety">Consent</a>
-      </div>
+        <p class="field-help">
+          “ready” and “confirmed” are blocked unless all required compliance items are satisfied for all models.
+        </p>
 
-      <p class="field-help" style="margin-top:0.8rem;">
-        The studio cannot confirm a booking until required compliance items are complete.
-      </p>
+        <div style="display:flex; gap:10px; justify-content:flex-end;">
+          <a class="btn secondary" href="/studio-panel/bookings">Back</a>
+          <button type="submit" class="btn primary">Update Status</button>
+        </div>
+      </form>
+
+      <h3 style="margin-top:1.2rem;">Audit Trail (Recent)</h3>
+      <% if (auditRows && auditRows.length) { %>
+        <div class="documents-list">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Actor</th>
+                <th>Action</th>
+                <th>IP</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% auditRows.forEach(function(a){ %>
+                <tr>
+                  <td><%= a.created_at %></td>
+                  <td><%= (a.actor_username || '—') %></td>
+                  <td><%= a.action %></td>
+                  <td><%= a.ip_address || '—' %></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } else { %>
+        <p class="muted">No audit entries yet.</p>
+      <% } %>
+
     </section>
   </main>
 </body>

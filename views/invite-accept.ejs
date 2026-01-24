@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Create Account – LumenNyx</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body class="model-portal">
+  <main style="max-width: 820px; margin: 2.5rem auto; padding: 0 1.5rem;">
+    <section class="portal-section">
+      <h3>Create Your Model Account</h3>
+
+      <% if (error) { %><div class="alert error"><%= error %></div><% } %>
+      <% if (message) { %><div class="alert success"><%= message %></div><% } %>
+
+      <p style="opacity:0.85;">
+        Invite for: <strong><%= email %></strong>
+        <% if (stage_name) { %> (Stage name: <strong><%= stage_name %></strong>) <% } %>
+      </p>
+
+      <form action="/invite/<%= token %>" method="POST" style="margin-top: 1.25rem;">
+        <label>Username</label>
+        <input name="username" type="text" required value="<%= (form && form.username) ? form.username : '' %>" />
+
+        <label style="margin-top:0.9rem;">Password</label>
+        <input name="password" type="password" required />
+
+        <label style="margin-top:0.9rem;">Confirm Password</label>
+        <input name="password2" type="password" required />
+
+        <div style="margin-top: 1.2rem; display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn primary" type="submit">Create Account</button>
+          <a class="btn secondary" href="/login">Back to Login</a>
+        </div>
+      </form>
+
+      <p style="margin-top: 1rem; opacity:0.7;">
+        This invite link is single-use. If you need a new link, contact the studio.
+      </p>
+    </section>
+  </main>
+</body>
+</html>

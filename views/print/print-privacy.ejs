@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Executed — Privacy</title>
+  <style>
+    body{font-family:Arial, sans-serif; color:#111; font-size:12px}
+    h1{font-size:18px; margin:0 0 6px}
+    .meta{margin:0 0 14px; color:#444}
+    .box{border:1px solid #333; padding:10px; border-radius:8px}
+    .row{display:flex; gap:14px}
+    .col{flex:1}
+    .check{font-weight:bold}
+    .sigWrap{margin-top:14px}
+    .sigLine{margin-top:6px}
+    .audit{margin-top:16px; color:#333}
+    .hr{border-top:1px solid #ddd; margin:14px 0}
+  </style>
+</head>
+<body>
+  <h1>Executed: Privacy, Confidentiality & Data Handling</h1>
+  <div class="meta">
+    Portal Document: <strong><%= payload.docType %></strong>
+  </div>
+
+  <div class="box">
+    <p><span class="check"><%= payload.ack_confidentiality ? "☑" : "☐" %></span> Confidentiality acknowledgment</p>
+    <p><span class="check"><%= payload.ack_data_handling ? "☑" : "☐" %></span> Data handling acknowledgment</p>
+    <p><span class="check"><%= payload.ack_no_recording_by_performer ? "☑" : "☐" %></span> No unauthorized recording acknowledgment</p>
+
+    <div class="hr"></div>
+
+    <p><strong>Preferred contact method:</strong> <%= payload.ack_contact_method || "—" %></p>
+    <p><strong>Notes:</strong> <%= payload.notes || "—" %></p>
+  </div>
+
+  <div class="sigWrap">
+    <div class="row">
+      <div class="col">
+        <strong>Signature</strong><br/>
+        <% if (signature && signature.signature_data_url) { %>
+          <img src="<%= signature.signature_data_url %>" style="height:55px" />
+        <% } else { %>
+          <em>No signature image</em>
+        <% } %>
+        <div class="sigLine"><strong>Method:</strong> <%= signature?.method || "—" %></div>
+        <div class="sigLine"><strong>Typed name:</strong> <%= signature?.typed_name || "—" %></div>
+      </div>
+      <div class="col">
+        <strong>Signed</strong><br/>
+        <div class="sigLine"><strong>Date/Time (ISO):</strong> <%= audit.signedAtIso %></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="audit">
+    <div class="hr"></div>
+    <strong>Audit Trail</strong><br/>
+    IP: <%= audit.ip %><br/>
+    User Agent: <%= audit.ua %><br/>
+  </div>
+</body>
+</html>

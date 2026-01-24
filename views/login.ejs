@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>LumenNyx Studios – Model Portal Login</title>
+  <title>LumenNyx Studios – Portal Login</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/css/style.css" />
 </head>
@@ -20,8 +20,9 @@
 
       <nav class="main-nav">
         <a href="/">Home</a>
-        <a href="/login" class="active">Login</a>
+        <a href="/login" class="active">Model Login</a>
         <a href="/register">Register</a>
+        <a href="/staff-login">Staff Login</a>
       </nav>
     </div>
   </header>
@@ -29,10 +30,10 @@
   <main class="page-wrapper">
 
     <div class="auth-card">
-      <h2>Model & Staff Login</h2>
+      <h2>Model Login</h2>
       <p class="auth-subtext">
-        Sign in to your LumenNyx Studios portal account to manage your profile,
-        documents, and consent settings.
+        Sign in to manage your profile, documents, and onboarding workflow.
+        Staff should use the dedicated <a href="/staff-login">Staff Login</a>.
       </p>
 
       <% if (typeof error !== 'undefined' && error) { %>
@@ -44,6 +45,10 @@
       <% } %>
 
       <form action="/login" method="POST" class="auth-form">
+        <% if (typeof csrfToken !== 'undefined' && csrfToken) { %>
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <% } %>
+
         <label>
           Username
           <input
@@ -71,12 +76,12 @@
 
       <div class="auth-footer">
         <p>
-          Usernames are <strong>not case-sensitive</strong> – you can log in with
-          any capitalization.
+          Usernames are <strong>not case-sensitive</strong>.
         </p>
+
         <p style="margin-top:0.5rem;">
           Don’t have an account yet?
-          <a href="/register">Request / create a portal account</a>.
+          <a href="/register">Submit a model application</a>.
         </p>
 
         <p class="auth-note">

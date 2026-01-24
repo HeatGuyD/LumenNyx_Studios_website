@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Aftercare / Post-Shoot</title>
+  <style>
+    body{font-family:Arial, sans-serif; margin:24px; color:#111}
+    .card{max-width:900px; margin:0 auto; padding:22px; border:1px solid #ddd; border-radius:12px}
+    h1{margin:0 0 8px}
+    .muted{color:#555; font-size:14px}
+    label{display:block; margin:10px 0}
+    textarea{width:100%; padding:10px; border:1px solid #ccc; border-radius:8px; min-height:90px}
+    .btn{margin-top:14px; padding:12px 14px; border:0; border-radius:10px; background:#111; color:#fff; cursor:pointer}
+    .req{color:#b00020; font-weight:bold}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Aftercare / Post-Shoot Acknowledgment</h1>
+    <div class="muted">
+      Booking: <strong><%= booking.title %></strong>
+      <% if (booking.shoot_date) { %> • Date: <strong><%= booking.shoot_date %></strong><% } %>
+    </div>
+
+    <form method="POST" action="/package/<%= token %>/ack/aftercare">
+      <label>
+        <input type="checkbox" name="ack_boundaries_respected" />
+        <span class="req">*</span> I confirm my boundaries were respected and I could pause/stop at any time.
+      </label>
+
+      <label>
+        <input type="checkbox" name="ack_aftercare_offered" />
+        <span class="req">*</span> I confirm aftercare/support was offered following the shoot.
+      </label>
+
+      <label>
+        <input type="checkbox" name="ack_no_injuries" />
+        I am not reporting any injury requiring immediate medical attention (if I am, I will notify the studio immediately).
+      </label>
+
+      <div style="margin-top:12px">
+        <label>Feedback (optional)</label>
+        <textarea name="feedback" placeholder="What went well / what you’d like improved next time."></textarea>
+      </div>
+
+      <div style="margin-top:12px">
+        <label>Concerns (optional)</label>
+        <textarea name="concerns" placeholder="Anything you want documented for recordkeeping."></textarea>
+      </div>
+
+      <button class="btn" type="submit">Sign & Generate Executed PDF</button>
+    </form>
+
+    <div class="muted" style="margin-top:14px">
+      Your signature on file will be used for the executed copy.
+    </div>
+  </div>
+</body>
+</html>

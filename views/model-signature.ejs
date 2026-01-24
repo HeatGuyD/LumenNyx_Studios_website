@@ -49,6 +49,9 @@
       <input type="hidden" name="signature_data_url" id="signature_data_url" />
       <input type="hidden" name="initials_data_url" id="initials_data_url" />
 
+      <!-- Add-only: optional audit metadata (safe if backend ignores) -->
+      <input type="hidden" name="client_tz" id="client_tz" value="" />
+
       <div class="tabs">
         <button type="button" class="tab active" data-tab="typed">Type signature</button>
         <button type="button" class="tab" data-tab="draw">Draw signature</button>
@@ -57,7 +60,18 @@
       <section id="tab-typed" class="tab-panel active">
         <label>
           Legal name (required)
-          <input type="text" name="typed_name" id="typed_name" placeholder="First Last" required />
+          <input
+            type="text"
+            name="typed_name"
+            id="typed_name"
+            placeholder="First Last"
+            required
+            value="<%=
+              (profile && profile.legal_name) ? profile.legal_name :
+              (signature && signature.typed_name) ? signature.typed_name :
+              ''
+            %>"
+          />
         </label>
 
         <div style="margin-top: 12px;">
@@ -111,5 +125,102 @@
   </main>
 
   <script src="/js/signature.js"></script>
+
+  <!-- Add-only: defensive glue so posts always contain usable fields -->
+  <script>
+    (function () {
+      // Timezone (audit)
+      try {
+        var tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+        var tzEl = document.getElementById('client_tz');
+        if (tzEl) tzEl.value = tz;
+      } catch (e) {}
+
+      var form = document.getElementById('sigForm');
+      var methodEl = document.getElementById('method');
+      var typedStyleEl = document.getElementById('typed_style');
+      var typedNameEl = document.getElementById('typed_name');
+      var sigUrlEl = document.getElementById('signature_data_url');
+      var initUrlEl = document.getElementById('initials_data_url');
+
+      var tabButtons = document.querySelectorAll('.tabs .tab');
+      var tabPanels = {
+        typed: document.getElementById('tab-typed'),
+        draw: document.getElementById('tab-draw')
+      };
+
+      function setActiveTab(tab) {
+        // Update hidden method
+        if (methodEl) methodEl.value = tab;
+
+        // UI active state (kept minimal; your CSS likely handles this)
+        tabButtons.forEach(function (btn) {
+          var is = (btn.getAttribute('data-tab') === tab);
+          btn.classList.toggle('active', is);
+        });
+        if (tabPanels.typed) tabPanels.typed.classList.toggle('active', tab === 'typed');
+        if (tabPanels.draw) tabPanels.draw.classList.toggle('active', tab === 'draw');
+      }
+
+      tabButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var tab = btn.getAttribute('data-tab');
+          if (tab === 'typed' || tab === 'draw') setActiveTab(tab);
+        });
+      });
+
+      // Style buttons should update hidden typed_style reliably
+      var styleButtons = document.querySelectorAll('.sig-style-row .sig-style');
+      styleButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var style = btn.getAttribute('data-style') || 'style1';
+          if (typedStyleEl) typedStyleEl.value = style;
+
+          styleButtons.forEach(function (b) { b.classList.toggle('active', b === btn); });
+
+          // Nudge signature.js to redraw if it listens to input events
+          if (typedNameEl) typedNameEl.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+      });
+
+      // On load: if typed name prefilled, trigger render in signature.js
+      if (typedNameEl && typedNameEl.value) {
+        try { typedNameEl.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
+      }
+
+      // Submit validation: ensure we aren't storing blank signature data
+      if (form) {
+        form.addEventListener('submit', function (e) {
+          var method = (methodEl && methodEl.value) ? methodEl.value : 'typed';
+
+          // In typed mode, we expect signature_data_url to be present.
+          // In draw mode, we also expect signature_data_url (from drawn canvas).
+          var sigOk = sigUrlEl && sigUrlEl.value && sigUrlEl.value.indexOf('data:image') === 0;
+
+          if (!sigOk) {
+            e.preventDefault();
+            alert(
+              "Signature image data is missing. Please type your name or draw your signature until it appears in the preview, then try again."
+            );
+            return false;
+          }
+
+          // Initials are optional; if empty, leave it blank (backend can store null/empty).
+          // If present but invalid, wipe it to avoid storing garbage.
+          if (initUrlEl && initUrlEl.value && initUrlEl.value.indexOf('data:image') !== 0) {
+            initUrlEl.value = '';
+          }
+
+          // If user is on draw tab, typed_name is still required by HTML; keep it valid:
+          // If empty (rare), attempt to fall back to profile legal name already prefilled, else block.
+          if (method === 'draw' && typedNameEl && !typedNameEl.value) {
+            e.preventDefault();
+            alert("Please enter your legal name before saving your signature.");
+            return false;
+          }
+        });
+      }
+    })();
+  </script>
 </body>
 </html>

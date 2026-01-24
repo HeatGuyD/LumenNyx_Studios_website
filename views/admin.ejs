@@ -1,218 +1,294 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Studio Panel – LumenNyx Studios</title>
-  <link rel="stylesheet" href="/css/style.css">
-</head>
-<body>
- <header class="site-header">
-  <div class="brand">
-    <a href="/" class="brand-link">
-      <img
-        src="/img/lumennyx-mark.png"
-        alt="LumenNyx Studios logo"
-        class="brand-logo"
-      />
-      <span class="brand-text">LUMENNYX STUDIOS</span>
-    </a>
-  </div>
+// FILE: routes/admin.js
+const express = require('express');
 
-  <nav class="main-nav">
-    <a href="/" class="nav-link">Home</a>
+module.exports = function adminRoutes(ctx) {
+  const router = express.Router();
+  const { dbGet, dbAll, dbRun } = ctx.db;
 
-    <% if (!isAuthenticated) { %>
-      <a href="/register" class="nav-link">Create Account</a>
-      <a href="/login" class="nav-link">Login</a>
-      <a href="/staff-login" class="nav-link">Staff Login</a>
-    <% } else { %>
-      <% if (role === 'model') { %>
-        <a href="/model/profile" class="nav-link">My Profile</a>
-        <a href="/my-scenes" class="nav-link">My Scenes</a>
-      <% } else if (role === 'admin' || role === 'staff') { %>
-        <a href="/studio-panel" class="nav-link">Studio Panel</a>
-        <% if (role === 'admin') { %>
-          <a href="/upload" class="nav-link">Upload Scene</a>
-        <% } %>
-      <% } %>
-      <a href="/logout" class="nav-link">Logout</a>
-    <% } %>
+  // ------------------------
+  // Guards
+  // ------------------------
+  function requireStaff(req, res, next) {
+    const u = req.session?.user;
+    if (!u) return res.redirect('/login');
+    if (u.role !== 'admin' && u.role !== 'staff') {
+      return res.status(403).render('error', { message: 'Access denied.' });
+    }
+    return next();
+  }
 
-    <a href="/2257" class="nav-link">2257 / Legal</a>
-  </nav>
-</header>
+  // ------------------------
+  // Helpers (schema-safe)
+  // ------------------------
+  async function tableExists(name) {
+    try {
+      const row = await dbGet(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name=? LIMIT 1`,
+        [name]
+      );
+      return !!row;
+    } catch (_e) {
+      return false;
+    }
+  }
 
+  async function safeCount(sql, params = []) {
+    try {
+      const row = await dbGet(sql, params);
+      const v = row && (row.c ?? row.count ?? row.total);
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    } catch (_e) {
+      return 0;
+    }
+  }
 
-  <main class="admin-page">
-    <section class="portal-header">
-      <h2>Studio Panel</h2>
-      <a href="/studio-panel/models" class="button">Manage Model Accounts</a>
+  function firstOf(obj, keys, fallback = null) {
+    for (const k of keys) {
+      if (obj && Object.prototype.hasOwnProperty.call(obj, k) && obj[k] != null) return obj[k];
+    }
+    return fallback;
+  }
 
-      <p>
-        Logged in as:
-        <strong><%= username %></strong>
-        (<%= role %>)
-      </p>
+  // ------------------------
+  // Studio Panel (Dashboard)
+  // ------------------------
+  router.get('/studio-panel', requireStaff, async (req, res) => {
+    try {
+      const totalModels = await safeCount(`SELECT COUNT(*) AS c FROM users WHERE role='model'`);
+      const pendingModels = await safeCount(
+        `SELECT COUNT(*) AS c FROM users WHERE role='model' AND status='pending'`
+      );
+      const approvedModels = await safeCount(
+        `SELECT COUNT(*) AS c FROM users WHERE role='model' AND (status='approved' OR status='active')`
+      );
 
-      <% if (message) { %>
-        <div class="alert success"><%= message %></div>
-      <% } %>
+      const CONTACT_EMAILS = ctx.STUDIO_EMAILS;
+      const MAIL_TO_STUDIO =
+        (process.env.MAIL_TO_STUDIO && String(process.env.MAIL_TO_STUDIO).trim()) ||
+        ctx.STUDIO_EMAILS.admin;
 
-      <% if (error) { %>
-        <div class="alert error"><%= error %></div>
-      <% } %>
-    </section>
+      return res.render('studio-panel', {
+        stats: { totalModels, pendingModels, approvedModels },
+        role: req.session.user?.role || 'staff',
+        CONTACT_EMAILS,
+        MAIL_TO_STUDIO,
+      });
+    } catch (err) {
+      console.error('Studio panel error:', err);
+      return res.status(500).render('error', { message: 'An internal error occurred.' });
+    }
+  });
 
-    <% 
-      const videoList = (typeof videos !== 'undefined' && Array.isArray(videos)) ? videos : [];
-      const modelList = (typeof models !== 'undefined' && Array.isArray(models)) ? models : [];
-    %>
+  // ------------------------
+  // Models List (renders studio-models.ejs)
+  // ------------------------
+  router.get('/studio-panel/models', requireStaff, async (req, res) => {
+    try {
+      // Detect optional tables (your project may or may not have these)
+      const hasProfiles = await tableExists('model_profiles');
+      const hasDocs = (await tableExists('documents')) || (await tableExists('model_documents'));
+      const hasPhotos = (await tableExists('photos')) || (await tableExists('model_photos'));
+      const hasReleases = await tableExists('master_releases');
+      const hasPolicies = await tableExists('model_policies');
+      const hasW9 = (await tableExists('w9_uploads')) || (await tableExists('model_w9'));
 
-    <!-- 1. Video Library Overview -->
-    <section class="portal-section">
-      <h3>Scenes in Library</h3>
+      // Build base query
+      // Always pull from users. Join optional profile table if it exists.
+      let rows = [];
+      if (hasProfiles) {
+        rows = await dbAll(
+          `
+          SELECT
+            u.id,
+            u.username,
+            u.status,
+            p.preferred_name,
+            p.legal_name,
+            p.date_of_birth,
+            p.headshot_path
+          FROM users u
+          LEFT JOIN model_profiles p ON p.user_id = u.id
+          WHERE u.role = 'model'
+          ORDER BY
+            CASE u.status
+              WHEN 'pending' THEN 0
+              WHEN 'approved' THEN 1
+              WHEN 'active' THEN 2
+              WHEN 'disabled' THEN 9
+              ELSE 5
+            END,
+            u.id DESC
+        `
+        );
+      } else {
+        rows = await dbAll(
+          `
+          SELECT id, username, status
+          FROM users
+          WHERE role='model'
+          ORDER BY
+            CASE status
+              WHEN 'pending' THEN 0
+              WHEN 'approved' THEN 1
+              WHEN 'active' THEN 2
+              WHEN 'disabled' THEN 9
+              ELSE 5
+            END,
+            id DESC
+        `
+        );
+      }
 
-      <% if (videoList.length === 0) { %>
-        <p>No scenes have been uploaded yet.</p>
-      <% } else { %>
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Title</th>
-              <th>Performer</th>
-              <th>Category</th>
-              <th>Created</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% videoList.forEach(function(v) { %>
-              <tr>
-                <td><%= v.id %></td>
-                <td><%= v.title %></td>
-                <td><%= v.performer_name || '-' %></td>
-                <td><%= v.category || '-' %></td>
-                <td><%= v.created_at %></td>
-                <td>
-                  <a href="/video/<%= v.id %>" class="btn small">View</a>
+      // Enrich each model with counts/status fields your EJS expects
+      const models = [];
+      for (const r of rows) {
+        const id = r.id;
 
-                  <% if (role === 'admin') { %>
-                    <form method="POST"
-                          action="/studio-panel/delete/<%= v.id %>"
-                          style="display:inline"
-                          onsubmit="return confirm('Delete this scene? This cannot be undone.');">
-                      <button type="submit" class="btn small danger">Delete</button>
-                    </form>
-                  <% } %>
-                </td>
-              </tr>
-            <% }); %>
-          </tbody>
-        </table>
-      <% } %>
+        // Docs count (best-effort across likely table names/columns)
+        let docs_count = 0;
+        if (hasDocs) {
+          // Try a few likely schemas
+          docs_count =
+            (await safeCount(`SELECT COUNT(*) AS c FROM documents WHERE user_id = ?`, [id])) ||
+            (await safeCount(`SELECT COUNT(*) AS c FROM documents WHERE model_id = ?`, [id])) ||
+            (await safeCount(`SELECT COUNT(*) AS c FROM model_documents WHERE user_id = ?`, [id])) ||
+            (await safeCount(`SELECT COUNT(*) AS c FROM model_documents WHERE model_id = ?`, [id]));
+        }
 
-      <% if (role === 'admin') { %>
-        <p class="field-help">
-          As admin you can also <a href="/upload">upload new scenes</a>.
-        </p>
-      <% } %>
-    </section>
+        // Photos count + headshot path (if not already from profile)
+        let photos_count = 0;
+        if (hasPhotos) {
+          photos_count =
+            (await safeCount(`SELECT COUNT(*) AS c FROM photos WHERE user_id = ?`, [id])) ||
+            (await safeCount(`SELECT COUNT(*) AS c FROM photos WHERE model_id = ?`, [id])) ||
+            (await safeCount(`SELECT COUNT(*) AS c FROM model_photos WHERE user_id = ?`, [id])) ||
+            (await safeCount(`SELECT COUNT(*) AS c FROM model_photos WHERE model_id = ?`, [id]));
+        }
 
-    <!-- 2. Model Accounts -->
-    <section class="portal-section">
-      <h3>Registered Models</h3>
+        // Release status (simple boolean-ish)
+        let release_status = null;
+        if (hasReleases) {
+          const rel =
+            (await dbGet(
+              `SELECT status, signed_at FROM master_releases WHERE user_id = ? ORDER BY id DESC LIMIT 1`,
+              [id]
+            )) ||
+            (await dbGet(
+              `SELECT status, signed_at FROM master_releases WHERE model_id = ? ORDER BY id DESC LIMIT 1`,
+              [id]
+            ));
+          if (rel) release_status = rel.signed_at ? 'Signed' : (rel.status || 'Not signed');
+        }
 
-      <% if (modelList.length === 0) { %>
-        <p>No models registered yet.</p>
-      <% } else { %>
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Username</th>
-              <th>Legal Name</th>
-              <th>DOB</th>
-              <th>Email</th>
-              <th>W-9</th>
-              <th>Status</th>
-              <% if (role === 'admin') { %>
-                <th>Actions</th>
-              <% } %>
-            </tr>
-          </thead>
-          <tbody>
-            <% modelList.forEach(function(m) { %>
-              <tr>
-                <td><%= m.id %></td>
-                <td><%= m.username %></td>
-                <td><%= m.legal_name || '-' %></td>
-                <td><%= m.date_of_birth || '-' %></td>
-                <td><%= m.email || '-' %></td>
-                <td><%= m.tax_form_uploaded ? 'Yes' : 'No' %></td>
-                <td>
-                  <% if (m.is_verified) { %>
-                    <span class="status-pill status-ok">Approved</span>
-                  <% } else { %>
-                    <span class="status-pill status-pending">Pending</span>
-                  <% } %>
-                </td>
+        // Consent/policies status
+        let consent_status = null;
+        if (hasPolicies) {
+          const pol =
+            (await dbGet(
+              `SELECT updated_at FROM model_policies WHERE user_id = ? ORDER BY id DESC LIMIT 1`,
+              [id]
+            )) ||
+            (await dbGet(
+              `SELECT updated_at FROM model_policies WHERE model_id = ? ORDER BY id DESC LIMIT 1`,
+              [id]
+            ));
+          if (pol) consent_status = pol.updated_at ? 'Saved' : 'Not completed';
+        }
 
-                <% if (role === 'admin') { %>
-                  <td>
-                    <% if (!m.is_verified) { %>
-                      <form method="POST"
-                            action="/studio-panel/approve-model/<%= m.id %>"
-                            style="display:inline">
-                        <button type="submit" class="btn small">Approve</button>
-                      </form>
-                    <% } else { %>
-                      <form method="POST"
-                            action="/studio-panel/models/<%= m.id %>/unapprove"
-                            style="display:inline">
-                        <button type="submit" class="btn small">Unapprove</button>
-                      </form>
-                    <% } %>
+        // W9 status
+        let w9_status = null;
+        if (hasW9) {
+          const w =
+            (await safeCount(`SELECT COUNT(*) AS c FROM w9_uploads WHERE user_id = ?`, [id])) ||
+            (await safeCount(`SELECT COUNT(*) AS c FROM w9_uploads WHERE model_id = ?`, [id])) ||
+            (await safeCount(`SELECT COUNT(*) AS c FROM model_w9 WHERE user_id = ?`, [id])) ||
+            (await safeCount(`SELECT COUNT(*) AS c FROM model_w9 WHERE model_id = ?`, [id]));
+          if (w > 0) w9_status = 'Uploaded';
+        }
 
-                    <form method="POST"
-                          action="/studio-panel/reject-model/<%= m.id %>"
-                          style="display:inline"
-                          onsubmit="return confirm('Permanently remove this model account and related records?');">
-                      <button type="submit" class="btn small danger">Delete</button>
-                    </form>
-                  </td>
-                <% } %>
-              </tr>
-            <% }); %>
-          </tbody>
-        </table>
-      <% } %>
-    </section>
+        models.push({
+          id,
+          username: r.username,
+          status: r.status || 'pending',
+          preferred_name: firstOf(r, ['preferred_name'], null),
+          legal_name: firstOf(r, ['legal_name'], null),
+          date_of_birth: firstOf(r, ['date_of_birth', 'dob'], null),
+          headshot_path: firstOf(r, ['headshot_path'], null),
 
-    <!-- 3. Staff creation (admin only) -->
-    <% if (role === 'admin') { %>
-      <section class="portal-section">
-        <h3>Create Staff Account</h3>
-        <form method="POST" action="/studio-panel/create-staff" class="portal-form">
-          <label>
-            Staff Username
-            <input type="text" name="staff_username" required>
-          </label>
+          docs_count,
+          photos_count,
 
-          <label>
-            Staff Email
-            <input type="email" name="staff_email" required>
-          </label>
+          release_status: release_status || 'Not signed',
+          consent_status: consent_status || 'Not completed',
+          w9_status: w9_status || 'None',
+        });
+      }
 
-          <label>
-            Temporary Password
-            <input type="password" name="staff_password" required>
-          </label>
+      return res.render('studio-models', { models });
+    } catch (err) {
+      console.error('Studio models page error:', err);
+      return res.status(500).render('error', { message: 'An internal error occurred.' });
+    }
+  });
 
-          <button type="submit" class="btn primary">Create Staff Account</button>
-        </form>
-      </section>
-    <% } %>
-  </main>
-</body>
-</html>
+  // ------------------------
+  // Update Model Status
+  // POST /studio-panel/models/:id/status
+  // ------------------------
+  router.post('/studio-panel/models/:id/status', requireStaff, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const status = String(req.body?.status || '').trim().toLowerCase();
+
+      const allowed = new Set(['pending', 'approved', 'active', 'disabled']);
+      if (!Number.isFinite(id) || !allowed.has(status)) {
+        return res.status(400).render('error', { message: 'Invalid request.' });
+      }
+
+      await dbRun(`UPDATE users SET status = ? WHERE id = ? AND role = 'model'`, [status, id]);
+
+      ctx.audit?.log?.(req, 'model_status_update', `Model user_id=${id} status=${status}`);
+
+      // Return to models list
+      return res.redirect('/studio-panel/models');
+    } catch (err) {
+      console.error('Update model status error:', err);
+      return res.status(500).render('error', { message: 'An internal error occurred.' });
+    }
+  });
+
+  // ------------------------
+  // Inspect Model
+  // GET /studio-panel/models/:id
+  // Renders studio-model-view.ejs if it exists, otherwise a safe fallback.
+  // ------------------------
+  router.get('/studio-panel/models/:id', requireStaff, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (!Number.isFinite(id)) {
+        return res.status(400).render('error', { message: 'Invalid model id.' });
+      }
+
+      // minimal model fetch
+      const model = await dbGet(
+        `SELECT id, username, status FROM users WHERE id = ? AND role = 'model' LIMIT 1`,
+        [id]
+      );
+
+      if (!model) {
+        return res.status(404).render('error', { message: 'Model not found.' });
+      }
+
+      // If you have a specific inspect view, we render it.
+      // Your tree shows: views/studio-model-view.ejs and/or studio-model-detail.ejs
+      // Start with studio-model-view.
+      return res.render('studio-model-view', { model });
+    } catch (err) {
+      console.error('Inspect model error:', err);
+      return res.status(500).render('error', { message: 'An internal error occurred.' });
+    }
+  });
+
+  return router;
+};

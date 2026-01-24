@@ -1,3 +1,4 @@
+<!-- FILE: views/studio-panel.ejs -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -22,6 +23,7 @@
 
       <nav class="main-nav">
         <a href="/studio-panel" class="active">Studio Panel</a>
+        <a href="/studio-panel/applications">Applications</a>
         <a href="/studio-panel/models">Models</a>
         <a href="/studio-panel/docs">Docs Map</a>
         <a href="/studio-panel/scenes">Scenes</a>
@@ -44,11 +46,21 @@
         and scene records. This area is for <strong>admin / staff</strong> use only.
       </p>
 
+      <% if (typeof message !== 'undefined' && message) { %>
+        <div class="alert success"><%= message %></div>
+      <% } %>
+      <% if (typeof error !== 'undefined' && error) { %>
+        <div class="alert error"><%= error %></div>
+      <% } %>
+
       <%
         const s = (typeof stats !== 'undefined' && stats) ? stats : {};
         const totalModels = (typeof s.totalModels !== 'undefined') ? s.totalModels : 0;
         const pendingModels = (typeof s.pendingModels !== 'undefined') ? s.pendingModels : 0;
         const approvedModels = (typeof s.approvedModels !== 'undefined') ? s.approvedModels : 0;
+
+        // NEW: applications
+        const pendingApplications = (typeof s.pendingApplications !== 'undefined') ? s.pendingApplications : 0;
 
         // Optional: show mail/contact config if the server passes them
         const emails = (typeof CONTACT_EMAILS !== 'undefined' && CONTACT_EMAILS) ? CONTACT_EMAILS : null;
@@ -64,12 +76,16 @@
           <span><%= totalModels %></span>
         </div>
         <div class="status-pill pending">
-          <span class="label">Pending Review</span>
+          <span class="label">Pending Models</span>
           <span><%= pendingModels %></span>
         </div>
         <div class="status-pill ok">
           <span class="label">Approved Models</span>
           <span><%= approvedModels %></span>
+        </div>
+        <div class="status-pill pending">
+          <span class="label">Pending Applications</span>
+          <span><%= pendingApplications %></span>
         </div>
       </div>
 
@@ -115,7 +131,15 @@
       <div class="policies-grid" style="margin-top:1.2rem;">
         <div class="policies-card">
           <h4>Model Applications</h4>
-          <p>Review new sign-ups, verify ID and releases, and approve or reject accounts.</p>
+          <p>Review new sign-ups (pre-vetting), view submitted photos, and set application status.</p>
+          <a href="/studio-panel/applications?status=pending" class="btn secondary" style="margin-top:0.5rem;">
+            Review Applications (<%= pendingApplications %>)
+          </a>
+        </div>
+
+        <div class="policies-card">
+          <h4>Model Accounts</h4>
+          <p>Manage approved portal accounts, verify docs, release, consent, and W-9 status.</p>
           <a href="/studio-panel/models" class="btn secondary" style="margin-top:0.5rem;">Manage Models</a>
         </div>
 
@@ -141,13 +165,16 @@
       <div class="panel-inner" style="margin-top: 16px;">
         <h3 style="margin-top:0;">Quick Actions</h3>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <a class="btn primary" href="/studio-panel/applications?status=pending">
+            Review Applications (<%= pendingApplications %>)
+          </a>
           <a class="btn primary" href="/studio-panel/models?status=pending">Review Pending Models</a>
           <a class="btn secondary" href="/studio-panel/models">All Models</a>
           <a class="btn secondary" href="/studio-panel/scenes">Scenes</a>
           <a class="btn secondary" href="/studio-panel/docs">Docs Map</a>
         </div>
         <p class="field-help" style="margin-top:10px;">
-          Tip: “Review Pending Models” filters directly to the accounts you need to approve.
+          Tip: Review applications first, then create/approve portal accounts only after you’ve verified fit and compliance requirements.
         </p>
       </div>
 

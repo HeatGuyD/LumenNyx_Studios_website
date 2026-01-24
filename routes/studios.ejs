@@ -1,0 +1,231 @@
+// FILE: routes/studio.js
+const express = require('express');
+
+module.exports = function studioRoutes(ctx) {
+  const router = express.Router();
+  const { dbAll, dbGet, dbRun, ensureColumn } = ctx.db;
+
+  // ---------------------------
+  // Guards
+  // ---------------------------
+  function requireStaff(req, res, next) {
+    const u = req.session?.user;
+    if (!u || !u.id || (u.role !== 'admin' && u.role !== 'staff')) {
+      return res.status(403).render('error', { message: 'Unauthorized. Staff only.' });
+    }
+    if (String(u.status || '').toLowerCase() === 'disabled') {
+      return res.status(403).render('error', { message: 'This staff account is disabled.' });
+    }
+    next();
+  }
+
+  // ---------------------------
+  // Helpers
+  // ---------------------------
+  async function ensureApplicationsTable() {
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS model_applications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TEXT DEFAULT (datetime('now')),
+        stage_name TEXT NOT NULL,
+        legal_name TEXT,
+        gender TEXT NOT NULL,
+        email TEXT NOT NULL,
+        phone TEXT,
+        location TEXT,
+        socials TEXT,
+        portfolio TEXT,
+        notes TEXT,
+        status TEXT DEFAULT 'pending'
+      )
+    `);
+
+    await ensureColumn('model_applications', 'headshot_filename TEXT');
+    await ensureColumn('model_applications', 'photos_json TEXT');
+  }
+
+  async function ensureScenesColumns() {
+    // in case db.js changes haven’t run yet in a dev DB, this keeps studio routes safe too
+    await ensureColumn('scenes', 'code TEXT');
+    await ensureColumn('scenes', 'status TEXT');
+    await ensureColumn('scenes', 'storage_note TEXT');
+  }
+
+  function flashConsume(req) {
+    const out = {
+      message: req.session?.message || null,
+      error: req.session?.error || null,
+    };
+    if (req.session) {
+      delete req.session.message;
+      delete req.session.error;
+    }
+    return out;
+  }
+
+  function flashSet(req, { message = null, error = null }) {
+    if (!req.session) return;
+    if (message) req.session.message = message;
+    if (error) req.session.error = error;
+  }
+
+  // ---------------------------
+  // Studio panel dashboard
+  // ---------------------------
+  router.get('/studio-panel', requireStaff, async (req, res) => {
+    try {
+      // basic stats for dashboard
+      const totalModelsRow = await dbGet(`SELECT COUNT(*) AS c FROM users WHERE role='model'`, []);
+      const pendingModelsRow = await dbGet(`SELECT COUNT(*) AS c FROM users WHERE role='model' AND status='pending'`, []);
+      const approvedModelsRow = await dbGet(`SELECT COUNT(*) AS c FROM users WHERE role='model' AND status='approved'`, []);
+
+      const stats = {
+        totalModels: totalModelsRow?.c || 0,
+        pendingModels: pendingModelsRow?.c || 0,
+        approvedModels: approvedModelsRow?.c || 0,
+      };
+
+      // optional count of applications
+      await ensureApplicationsTable();
+      const appsPendingRow = await dbGet(`SELECT COUNT(*) AS c FROM model_applications WHERE status='pending'`, []);
+
+      return res.render('studio-panel', {
+        stats,
+        pendingApplications: appsPendingRow?.c || 0,
+        role: req.session.user.role,
+        MAIL_TO_STUDIO: process.env.MAIL_TO_STUDIO || null,
+        CONTACT_EMAILS: ctx.STUDIO_EMAILS || null,
+      });
+    } catch (e) {
+      console.error('Studio panel error:', e);
+      return res.status(500).render('error', { message: 'Server error.' });
+    }
+  });
+
+  // ---------------------------
+  // Applications list
+  // ---------------------------
+  router.get('/studio-panel/applications', requireStaff, async (req, res) => {
+    try {
+      await ensureApplicationsTable();
+      const flash = flashConsume(req);
+
+      const applications = await dbAll(
+        `SELECT * FROM model_applications ORDER BY created_at DESC, id DESC LIMIT 500`,
+        []
+      );
+
+      return res.render('studio-applications', {
+        applications,
+        message: flash.message,
+        error: flash.error,
+      });
+    } catch (e) {
+      console.error('Applications list error:', e);
+      return res.status(500).render('error', { message: 'Server error.' });
+    }
+  });
+
+  // ---------------------------
+  // Applications view
+  // ---------------------------
+  router.get('/studio-panel/applications/:id', requireStaff, async (req, res) => {
+    try {
+      await ensureApplicationsTable();
+      const flash = flashConsume(req);
+
+      const id = Number(req.params.id);
+      if (!id) return res.status(404).render('error', { message: 'Application not found.' });
+
+      const app = await dbGet(`SELECT * FROM model_applications WHERE id = ?`, [id]);
+      if (!app) return res.status(404).render('error', { message: 'Application not found.' });
+
+      let photos = [];
+      try {
+        photos = app.photos_json ? JSON.parse(app.photos_json) : [];
+        if (!Array.isArray(photos)) photos = [];
+      } catch (_e) {
+        photos = [];
+      }
+
+      return res.render('studio-application-view', {
+        app,
+        photos,
+        message: flash.message,
+        error: flash.error,
+      });
+    } catch (e) {
+      console.error('Applications view error:', e);
+      return res.status(500).render('error', { message: 'Server error.' });
+    }
+  });
+
+  // ---------------------------
+  // Scenes list + create
+  // ---------------------------
+  router.get('/studio-panel/scenes', requireStaff, async (req, res) => {
+    try {
+      await ensureScenesColumns();
+      const flash = flashConsume(req);
+
+      const scenes = await dbAll(
+        `SELECT id, title, description, shoot_date, code, status, storage_note, created_at
+         FROM scenes
+         ORDER BY created_at DESC, id DESC
+         LIMIT 500`,
+        []
+      );
+
+      return res.render('studio-scenes', {
+        scenes,
+        message: flash.message,
+        error: flash.error,
+      });
+    } catch (e) {
+      console.error('Scenes GET error:', e);
+      return res.status(500).render('error', { message: 'Server error.' });
+    }
+  });
+
+  router.post('/studio-panel/scenes/new', requireStaff, async (req, res) => {
+    try {
+      await ensureScenesColumns();
+
+      const title = String(req.body.title || '').trim();
+      const code = String(req.body.code || '').trim();
+      const shoot_date = String(req.body.shoot_date || '').trim();
+      const status = String(req.body.status || '').trim();
+      const storage_note = String(req.body.storage_note || '').trim();
+      const description = String(req.body.description || '').trim();
+
+      if (!title) {
+        flashSet(req, { error: 'Scene title is required.' });
+        return req.session.save(() => res.redirect('/studio-panel/scenes'));
+      }
+
+      await dbRun(
+        `INSERT INTO scenes (title, description, shoot_date, code, status, storage_note)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          title,
+          description || null,
+          shoot_date || null,
+          code || null,
+          status || null,
+          storage_note || null,
+        ]
+      );
+
+      flashSet(req, { message: 'Scene created.' });
+      return req.session.save(() => res.redirect('/studio-panel/scenes'));
+    } catch (e) {
+      console.error('Scenes POST error:', e);
+      flashSet(req, { error: 'Could not create scene.' });
+      return req.session?.save
+        ? req.session.save(() => res.redirect('/studio-panel/scenes'))
+        : res.redirect('/studio-panel/scenes');
+    }
+  });
+
+  return router;
+};

@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Executed — Aftercare</title>
+  <style>
+    body{font-family:Arial, sans-serif; color:#111; font-size:12px}
+    h1{font-size:18px; margin:0 0 6px}
+    .meta{margin:0 0 14px; color:#444}
+    .box{border:1px solid #333; padding:10px; border-radius:8px}
+    .check{font-weight:bold}
+    .hr{border-top:1px solid #ddd; margin:14px 0}
+  </style>
+</head>
+<body>
+  <h1>Executed: Aftercare / Post-Shoot Acknowledgment</h1>
+  <div class="meta">Portal Document: <strong><%= payload.docType %></strong></div>
+
+  <div class="box">
+    <p><span class="check"><%= payload.ack_boundaries_respected ? "☑" : "☐" %></span> Boundaries respected; performer could pause/stop anytime</p>
+    <p><span class="check"><%= payload.ack_aftercare_offered ? "☑" : "☐" %></span> Aftercare/support offered</p>
+    <p><span class="check"><%= payload.ack_no_injuries ? "☑" : "☐" %></span> No immediate medical injury reported</p>
+
+    <div class="hr"></div>
+
+    <p><strong>Feedback:</strong> <%= payload.feedback || "—" %></p>
+    <p><strong>Concerns:</strong> <%= payload.concerns || "—" %></p>
+  </div>
+
+  <div style="margin-top:14px">
+    <strong>Signature</strong><br/>
+    <% if (signature && signature.signature_data_url) { %>
+      <img src="<%= signature.signature_data_url %>" style="height:55px" />
+    <% } else { %>
+      <em>No signature image</em>
+    <% } %>
+    <div><strong>Date/Time (ISO):</strong> <%= audit.signedAtIso %></div>
+
+    <div class="hr"></div>
+    <strong>Audit Trail</strong><br/>
+    IP: <%= audit.ip %><br/>
+    User Agent: <%= audit.ua %><br/>
+  </div>
+</body>
+</html>

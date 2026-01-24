@@ -16,6 +16,7 @@
       <nav class="main-nav">
         <a href="/model/profile">Model Portal</a>
         <a href="/model/bookings" class="active">My Bookings</a>
+        <a href="/model/scenes">My Scenes</a>
         <a href="/model/signature">Signature</a>
         <a href="/model/release">Release</a>
         <form action="/logout" method="POST" style="display:inline;">
@@ -28,7 +29,9 @@
   <main class="page-wrapper">
     <section class="portal-section">
       <h2>My Bookings</h2>
-      <p class="portal-note">Bookings are created by the studio after approval. Compliance items must be completed before a booking can be confirmed.</p>
+      <p class="portal-note">
+        Bookings are created by the studio after approval. Compliance items must be completed before a booking can be confirmed.
+      </p>
 
       <% if (message) { %><div class="alert success"><%= message %></div><% } %>
       <% if (error) { %><div class="alert error"><%= error %></div><% } %>
@@ -44,16 +47,32 @@
             </tr>
           </thead>
           <tbody>
-            <% (bookings || []).forEach(function(b){ %>
+            <% if (bookings && bookings.length) { %>
+              <% bookings.forEach(function(b){ %>
+                <tr>
+                  <td><strong><%= b.title %></strong></td>
+                  <td><%= b.shoot_date || '—' %></td>
+                  <td><%= b.status || '—' %></td>
+                  <td>
+                    <a class="btn secondary" href="/model/bookings/<%= b.id %>" style="padding:0.25rem 0.7rem;font-size:0.8rem;">
+                      Open
+                    </a>
+                  </td>
+                </tr>
+              <% }) %>
+            <% } else { %>
               <tr>
-                <td><strong><%= b.title %></strong></td>
-                <td><%= b.shoot_date || '—' %></td>
-                <td><%= b.status %></td>
-                <td><a class="btn secondary" href="/model/bookings/<%= b.id %>" style="padding:0.25rem 0.7rem;font-size:0.8rem;">Open</a></td>
+                <td colspan="4" class="muted" style="padding:0.9rem;">
+                  No bookings yet. Once the studio creates a booking, it will appear here.
+                </td>
               </tr>
-            <% }) %>
+            <% } %>
           </tbody>
         </table>
+      </div>
+
+      <div style="margin-top:0.9rem;">
+        <a class="btn secondary" href="/model/profile">Back to Model Portal</a>
       </div>
     </section>
   </main>

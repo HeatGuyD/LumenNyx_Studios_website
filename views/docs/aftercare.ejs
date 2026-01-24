@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Aftercare / Post-Shoot</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body class="auth-page">
+  <main class="page-wrapper">
+    <section class="auth-card">
+      <h2>Aftercare / Post-Shoot</h2>
+
+      <% if (error) { %><div class="alert error"><%= error %></div><% } %>
+      <% if (message) { %><div class="alert success"><%= message %></div><% } %>
+
+      <% if (!signature) { %>
+        <div class="alert error">
+          No signature on file. Please complete your signature setup before executing documents.
+        </div>
+      <% } %>
+
+      <form method="POST" action="/docs/aftercare" class="auth-form">
+        <label class="field">
+          <label style="display:flex; gap:.6rem; align-items:center;">
+            <input type="checkbox" name="ack_boundaries_respected" />
+            <span>Boundaries respected; performer could pause/stop anytime.</span>
+          </label>
+        </label>
+
+        <label class="field">
+          <label style="display:flex; gap:.6rem; align-items:center;">
+            <input type="checkbox" name="ack_aftercare_offered" />
+            <span>Aftercare/support was offered.</span>
+          </label>
+        </label>
+
+        <label class="field">
+          <label style="display:flex; gap:.6rem; align-items:center;">
+            <input type="checkbox" name="ack_no_injuries" />
+            <span>No immediate medical injury reported.</span>
+          </label>
+        </label>
+
+        <label class="field">
+          <span>Feedback (optional)</span>
+          <textarea name="feedback" rows="3"></textarea>
+        </label>
+
+        <label class="field">
+          <span>Concerns (optional)</span>
+          <textarea name="concerns" rows="3"></textarea>
+        </label>
+
+        <button class="btn primary" style="width:100%;" type="submit" <%= !signature ? 'disabled' : '' %>>
+          Sign & Generate Executed PDF
+        </button>
+      </form>
+
+      <div style="margin-top:.9rem;">
+        <a class="btn secondary" style="width:100%; display:inline-block; text-align:center;" href="/docs">Back</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

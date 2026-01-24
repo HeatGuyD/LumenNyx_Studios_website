@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Payment Confirmation</title>
+  <style>
+    body{font-family:Arial, sans-serif; margin:24px; color:#111}
+    .card{max-width:900px; margin:0 auto; padding:22px; border:1px solid #ddd; border-radius:12px}
+    h1{margin:0 0 8px}
+    .muted{color:#555; font-size:14px}
+    label{display:block; margin:10px 0}
+    input[type="text"], input[type="date"], textarea{width:100%; padding:10px; border:1px solid #ccc; border-radius:8px}
+    textarea{min-height:90px}
+    .btn{margin-top:14px; padding:12px 14px; border:0; border-radius:10px; background:#111; color:#fff; cursor:pointer}
+    .row{display:flex; gap:12px}
+    .row > div{flex:1}
+    .req{color:#b00020; font-weight:bold}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Payment Confirmation / Receipt</h1>
+    <div class="muted">
+      Booking: <strong><%= booking.title %></strong>
+      <% if (booking.shoot_date) { %> • Date: <strong><%= booking.shoot_date %></strong><% } %>
+    </div>
+
+    <form method="POST" action="/package/<%= token %>/ack/payment">
+      <div class="row">
+        <div>
+          <label>Amount <span class="req">*</span></label>
+          <input type="text" name="amount" placeholder="e.g., 1200.00" required />
+        </div>
+        <div>
+          <label>Method <span class="req">*</span></label>
+          <input type="text" name="method" placeholder="Cash / Zelle / ACH / etc." required />
+        </div>
+      </div>
+
+      <div style="margin-top:12px">
+        <label>Date <span class="req">*</span></label>
+        <input type="date" name="date" required />
+      </div>
+
+      <label style="margin-top:12px">
+        <input type="checkbox" name="ack_payment_correct" />
+        <span class="req">*</span> I acknowledge the payment details above are correct.
+      </label>
+
+      <div style="margin-top:12px">
+        <label>Notes (optional)</label>
+        <textarea name="notes" placeholder="Optional notes about payout details."></textarea>
+      </div>
+
+      <button class="btn" type="submit">Sign & Generate Executed PDF</button>
+    </form>
+
+    <div class="muted" style="margin-top:14px">
+      Your signature on file will be used for the executed copy.
+    </div>
+  </div>
+</body>
+</html>

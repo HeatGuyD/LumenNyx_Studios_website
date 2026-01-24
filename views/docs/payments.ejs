@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Payment Confirmation</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body class="auth-page">
+  <main class="page-wrapper">
+    <section class="auth-card">
+      <h2>Payment Confirmation</h2>
+
+      <% if (error) { %><div class="alert error"><%= error %></div><% } %>
+      <% if (message) { %><div class="alert success"><%= message %></div><% } %>
+
+      <% if (!signature) { %>
+        <div class="alert error">
+          No signature on file. Please complete your signature setup before executing documents.
+        </div>
+      <% } %>
+
+      <form method="POST" action="/docs/payment" class="auth-form">
+        <label class="field">
+          <span>Amount</span>
+          <input type="text" name="amount" placeholder="$1000" required />
+        </label>
+
+        <label class="field">
+          <span>Method</span>
+          <input type="text" name="method" placeholder="Cash / Zelle / etc." required />
+        </label>
+
+        <label class="field">
+          <span>Date</span>
+          <input type="date" name="date" required />
+        </label>
+
+        <label class="field">
+          <label style="display:flex; gap:.6rem; align-items:center;">
+            <input type="checkbox" name="ack_payment_correct" />
+            <span>I acknowledge payment details are correct.</span>
+          </label>
+        </label>
+
+        <label class="field">
+          <span>Notes (optional)</span>
+          <textarea name="notes" rows="4"></textarea>
+        </label>
+
+        <button class="btn primary" style="width:100%;" type="submit" <%= !signature ? 'disabled' : '' %>>
+          Sign & Generate Executed PDF
+        </button>
+      </form>
+
+      <div style="margin-top:.9rem;">
+        <a class="btn secondary" style="width:100%; display:inline-block; text-align:center;" href="/docs">Back</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -170,13 +170,17 @@
 
       <form action="/model/release" method="POST" class="portal-form" style="margin-top:1rem;">
 
+        <!-- Add-only hidden fields for future-proofing / audit (safe if ignored by backend) -->
+        <input type="hidden" name="signed_method" value="typed_name" />
+        <input type="hidden" name="client_tz" id="client_tz" value="" />
+
         <label class="checkbox-label">
           <input type="checkbox" name="agree_master_release" required />
           I confirm I am at least 18 years old and agree this is a legally binding contract.
         </label>
 
         <label class="checkbox-label">
-          <input type="checkbox" required />
+          <input type="checkbox" name="agree_esign_metadata" required />
           I consent to electronic signature and metadata recording.
         </label>
 
@@ -197,5 +201,17 @@
     </div>
   </section>
 </main>
+
+<script>
+  // Add-only: store browser timezone for audit trails (safe if backend ignores).
+  (function () {
+    try {
+      var tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      var el = document.getElementById('client_tz');
+      if (el) el.value = tz;
+    } catch (e) {}
+  })();
+</script>
+
 </body>
 </html>

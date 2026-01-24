@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Privacy & Confidentiality</title>
+  <style>
+    body{font-family:Arial, sans-serif; margin:24px; color:#111}
+    .card{max-width:900px; margin:0 auto; padding:22px; border:1px solid #ddd; border-radius:12px}
+    h1{margin:0 0 8px}
+    .muted{color:#555; font-size:14px}
+    .section{margin-top:18px}
+    label{display:block; margin:10px 0}
+    input[type="text"], textarea{width:100%; padding:10px; border:1px solid #ccc; border-radius:8px}
+    textarea{min-height:90px}
+    .btn{margin-top:14px; padding:12px 14px; border:0; border-radius:10px; background:#111; color:#fff; cursor:pointer}
+    .req{color:#b00020; font-weight:bold}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Privacy, Confidentiality & Data Handling</h1>
+    <div class="muted">
+      Booking: <strong><%= booking.title %></strong>
+      <% if (booking.shoot_date) { %> • Date: <strong><%= booking.shoot_date %></strong><% } %>
+      <% if (booking.location) { %> • Location: <strong><%= booking.location %></strong><% } %>
+    </div>
+
+    <div class="section">
+      <p>This document confirms confidentiality expectations and how the studio handles sensitive personal data submitted through the portal.</p>
+    </div>
+
+    <form method="POST" action="/package/<%= token %>/ack/privacy">
+      <div class="section">
+        <label>
+          <input type="checkbox" name="ack_confidentiality" />
+          <span class="req">*</span> I understand confidentiality expectations and agree not to disclose private production details beyond what is authorized in writing.
+        </label>
+
+        <label>
+          <input type="checkbox" name="ack_data_handling" />
+          <span class="req">*</span> I understand the studio collects personal data for compliance/contracting, stores it with access controls, and limits access to authorized personnel only.
+        </label>
+
+        <label>
+          <input type="checkbox" name="ack_no_recording_by_performer" />
+          I agree I will not record behind-the-scenes or private areas without explicit permission.
+        </label>
+      </div>
+
+      <div class="section">
+        <label>Preferred contact method (optional)</label>
+        <input type="text" name="ack_contact_method" placeholder="Text / Email / Signal / etc." />
+      </div>
+
+      <div class="section">
+        <label>Notes (optional)</label>
+        <textarea name="notes" placeholder="Any concerns or notes you'd like documented."></textarea>
+      </div>
+
+      <button class="btn" type="submit">Sign & Generate Executed PDF</button>
+    </form>
+
+    <div class="section muted">
+      Your signature on file will be used for the executed copy.
+    </div>
+  </div>
+</body>
+</html>

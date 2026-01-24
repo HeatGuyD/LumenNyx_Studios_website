@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Privacy & Confidentiality</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body class="auth-page">
+  <main class="page-wrapper">
+    <section class="auth-card">
+      <h2>Privacy & Confidentiality</h2>
+
+      <% if (error) { %><div class="alert error"><%= error %></div><% } %>
+      <% if (message) { %><div class="alert success"><%= message %></div><% } %>
+
+      <% if (!signature) { %>
+        <div class="alert error">
+          No signature on file. Please complete your signature setup before executing documents.
+        </div>
+      <% } %>
+
+      <form method="POST" action="/docs/privacy" class="auth-form">
+        <label class="field">
+          <label style="display:flex; gap:.6rem; align-items:center;">
+            <input type="checkbox" name="ack_confidentiality" />
+            <span>I acknowledge confidentiality requirements.</span>
+          </label>
+        </label>
+
+        <label class="field">
+          <label style="display:flex; gap:.6rem; align-items:center;">
+            <input type="checkbox" name="ack_data_handling" />
+            <span>I acknowledge data handling and secure storage.</span>
+          </label>
+        </label>
+
+        <label class="field">
+          <label style="display:flex; gap:.6rem; align-items:center;">
+            <input type="checkbox" name="ack_no_recording_by_performer" />
+            <span>I will not record behind-the-scenes or capture unauthorized media.</span>
+          </label>
+        </label>
+
+        <label class="field">
+          <span>Preferred contact method (optional)</span>
+          <input type="text" name="ack_contact_method" placeholder="Text / Email / Signal / etc." />
+        </label>
+
+        <label class="field">
+          <span>Notes (optional)</span>
+          <textarea name="notes" rows="4"></textarea>
+        </label>
+
+        <button class="btn primary" style="width:100%;" type="submit" <%= !signature ? 'disabled' : '' %>>
+          Sign & Generate Executed PDF
+        </button>
+      </form>
+
+      <div style="margin-top:.9rem;">
+        <a class="btn secondary" style="width:100%; display:inline-block; text-align:center;" href="/docs">Back</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

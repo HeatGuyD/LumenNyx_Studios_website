@@ -1,0 +1,123 @@
+<!-- FILE: views/studio-application-view.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Application <%= application.id %> – LumenNyx Studios</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body class="model-portal">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/studio-panel" class="brand-link">
+        <span class="brand-mark">
+          <img src="/img/lumennyx-mark.png" alt="LumenNyx Studios logo">
+        </span>
+        <span class="brand-text">LUMENNYX STUDIOS</span>
+      </a>
+
+      <nav class="main-nav">
+        <a href="/studio-panel">Studio Panel</a>
+        <a href="/studio-panel/models">Models</a>
+        <a href="/studio-panel/applications" class="active">Applications</a>
+        <a href="/studio-panel/scenes">Scenes</a>
+        <a href="/2257">2257</a>
+        <form action="/logout" method="POST" style="display:inline;">
+          <button type="submit" class="btn secondary" style="padding:0.3rem 0.9rem;font-size:0.75rem;">
+            Logout
+          </button>
+        </form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-wrapper">
+    <section class="portal-section">
+      <h3>Application #<%= application.id %></h3>
+
+      <% if (message) { %>
+        <div class="alert success"><%= message %></div>
+      <% } %>
+      <% if (error) { %>
+        <div class="alert error"><%= error %></div>
+      <% } %>
+
+      <div style="margin-top: 10px; display:flex; gap:10px; flex-wrap:wrap;">
+        <a class="btn secondary" href="/studio-panel/applications">Back to Applications</a>
+      </div>
+    </section>
+
+    <section class="portal-section">
+      <h3>Details</h3>
+      <p><strong>Submitted:</strong> <%= application.created_at || '—' %></p>
+      <p><strong>Stage Name:</strong> <%= application.stage_name %></p>
+      <p><strong>Legal Name:</strong> <%= application.legal_name || '—' %></p>
+      <p><strong>Gender:</strong> <%= application.gender %></p>
+      <p><strong>Email:</strong> <%= application.email %></p>
+      <p><strong>Phone:</strong> <%= application.phone || '—' %></p>
+      <p><strong>Location:</strong> <%= application.location || '—' %></p>
+      <p><strong>Socials:</strong> <%= application.socials || '—' %></p>
+      <p><strong>Portfolio:</strong>
+        <% if (application.portfolio) { %>
+          <a href="<%= application.portfolio %>" target="_blank" rel="noopener"><%= application.portfolio %></a>
+        <% } else { %>
+          —
+        <% } %>
+      </p>
+      <p><strong>Notes:</strong><br><%= application.notes || '—' %></p>
+      <p><strong>Status:</strong> <%= application.status || 'pending' %></p>
+    </section>
+
+    <section class="portal-section">
+      <h3>Uploads</h3>
+
+      <div style="display:flex; gap:16px; flex-wrap:wrap;">
+        <div style="min-width:260px;">
+          <h4 style="margin:0 0 8px 0;">Headshot</h4>
+          <% if (application.headshot_filename) { %>
+            <a href="/uploads/photos/<%= application.headshot_filename %>" target="_blank" rel="noopener">
+              <img src="/uploads/photos/<%= application.headshot_filename %>" alt="Headshot"
+                   style="max-width:260px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);" />
+            </a>
+          <% } else { %>
+            <p>—</p>
+          <% } %>
+        </div>
+
+        <div style="flex:1; min-width:260px;">
+          <h4 style="margin:0 0 8px 0;">Portfolio Photos</h4>
+          <% if (application.photos && application.photos.length) { %>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <% application.photos.forEach(function(p) { %>
+                <a href="/uploads/photos/<%= p %>" target="_blank" rel="noopener">
+                  <img src="/uploads/photos/<%= p %>" alt="Portfolio photo"
+                       style="width:160px;height:160px;object-fit:cover;border-radius:12px;border:1px solid rgba(255,255,255,0.08);" />
+                </a>
+              <% }); %>
+            </div>
+          <% } else { %>
+            <p>—</p>
+          <% } %>
+        </div>
+      </div>
+    </section>
+
+    <section class="portal-section">
+      <h3>Update Status</h3>
+      <form method="POST" action="/studio-panel/applications/<%= application.id %>/status" class="portal-form">
+        <label>
+          Status
+          <select name="status" required>
+            <option value="pending" <%= (application.status || 'pending') === 'pending' ? 'selected' : '' %>>pending</option>
+            <option value="approved" <%= application.status === 'approved' ? 'selected' : '' %>>approved</option>
+            <option value="rejected" <%= application.status === 'rejected' ? 'selected' : '' %>>rejected</option>
+          </select>
+        </label>
+
+        <button type="submit" class="btn primary">Save Status</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>
