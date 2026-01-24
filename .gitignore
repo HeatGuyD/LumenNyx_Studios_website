@@ -15,3 +15,12 @@ uploads/
 # backups
 *.bak*
 _server_backups/
+
+# --- Local secrets / runtime files ---
+.env
+.env.*
+node_modules/
+database.sqlite
+*.sqlite
+uploads/
+
