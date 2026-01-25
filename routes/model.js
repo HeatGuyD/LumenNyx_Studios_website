@@ -1,4 +1,4 @@
-// routes/model.js
+// FILE: routes/model.js
 const express = require('express');
 
 module.exports = function modelRoutes(ctx) {
@@ -14,10 +14,6 @@ module.exports = function modelRoutes(ctx) {
     return next();
   }
 
-  function normalizeDocType(s) {
-    return String(s || '').trim();
-  }
-
   // -------------------------
   // Model Profile (wired)
   // -------------------------
@@ -25,10 +21,7 @@ module.exports = function modelRoutes(ctx) {
     try {
       const userId = req.session.user.id;
 
-      const profile = await dbGet(
-        `SELECT * FROM model_profiles WHERE user_id=? LIMIT 1`,
-        [userId]
-      );
+      const profile = await dbGet(`SELECT * FROM model_profiles WHERE user_id=? LIMIT 1`, [userId]);
 
       const documents = await dbAll(
         `SELECT id, doc_type, filename, uploaded_at
@@ -108,10 +101,7 @@ module.exports = function modelRoutes(ctx) {
     }
   });
 
-  // Optional route if you later add a dedicated model booking view template:
   router.get('/model/bookings/:id', requireModel, async (req, res) => {
-    // You did not provide a real model-specific booking detail template.
-    // Keep it non-404 and avoid leaking staff-only data.
     req.session.message = 'Booking detail view is not enabled yet. Please view bookings list.';
     return res.redirect('/model/bookings');
   });
@@ -135,8 +125,6 @@ module.exports = function modelRoutes(ctx) {
         [userId]
       );
 
-      // Your template expects role_label; you store it on booking_models, not scene_models.
-      // Provide a safe default.
       const mapped = (scenes || []).map((s) => ({
         ...s,
         role_label: 'Performer',

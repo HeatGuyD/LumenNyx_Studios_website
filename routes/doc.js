@@ -1,4 +1,4 @@
-// routes/doc.js
+// FILE: routes/doc.js
 const express = require('express');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -77,7 +77,6 @@ module.exports = function docRoutes(ctx) {
   const { dbRun, dbGet, dbAll } = ctx.db;
   const audit = ctx.audit;
 
-  // executed_documents table
   (async () => {
     await dbRun(`
       CREATE TABLE IF NOT EXISTS executed_documents (
@@ -126,17 +125,11 @@ module.exports = function docRoutes(ctx) {
     return docHash;
   }
 
-  // -------------------------
-  // MODEL: docs index
-  // -------------------------
   router.get('/docs', ensureLoggedIn, async (req, res) => {
     const flash = consumeFlash(req);
     return res.render('docs/index', { studioEmails: ctx.STUDIO_EMAILS, ...flash });
   });
 
-  // -------------------------
-  // MODEL: doc form views
-  // -------------------------
   router.get('/docs/:docType', ensureLoggedIn, async (req, res) => {
     try {
       const docType = requireDocType(String(req.params.docType || '').trim());
@@ -158,9 +151,6 @@ module.exports = function docRoutes(ctx) {
     }
   });
 
-  // -------------------------
-  // MODEL: submit doc -> executed PDF
-  // -------------------------
   router.post('/docs/:docType', ensureLoggedIn, async (req, res) => {
     try {
       const docType = requireDocType(String(req.params.docType || '').trim());
@@ -220,14 +210,12 @@ module.exports = function docRoutes(ctx) {
         }
       }
 
-      // Use your actual print view filenames
       const printViewMap = {
         privacy: 'print/privacy',
         payment: 'print/payment',
         aftercare: 'print/aftercare',
       };
 
-      // signature base64 for prints (preferred)
       let signatureDataUrl = null;
       try {
         const sigPath = path.join(ctx.uploadDirs.signatureUploadsDir, path.basename(sig.signature_png));
@@ -243,7 +231,7 @@ module.exports = function docRoutes(ctx) {
           {
             payload,
             signature: { ...sig, signature_data_url: signatureDataUrl },
-            booking: null, // templates must not depend on booking
+            booking: null,
             audit: {
               ip: getClientIp(req),
               ua: req.headers['user-agent'] || '',
@@ -257,7 +245,6 @@ module.exports = function docRoutes(ctx) {
 
       const pdf = await renderPdfFromHtml({ html });
 
-      // Save PDF
       const filename = `executed_${docType}_${userId}_${Date.now()}_${Math.random().toString(36).slice(2)}.pdf`;
       fs.writeFileSync(path.join(executedPdfDir, filename), pdf);
 
@@ -289,9 +276,6 @@ module.exports = function docRoutes(ctx) {
     }
   });
 
-  // -------------------------
-  // ADMIN: list executed docs
-  // -------------------------
   router.get('/studio-panel/executed', ensureAdmin, async (req, res) => {
     try {
       const rows = await dbAll(

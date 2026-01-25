@@ -11,9 +11,34 @@ module.exports = function authRoutes(ctx) {
   const { dbGet, dbRun, ensureColumn } = ctx.db;
 
   // ---------------------------------------------------------
+  // Helper: regenerate session safely and then set values
+  // ---------------------------------------------------------
+  function loginSession(req, res, userSessionObj, redirectTo) {
+    const to = redirectTo || '/';
+
+    // Regenerate session to avoid fixation + ensure clean cookie issuance
+    req.session.regenerate((err) => {
+      if (err) {
+        console.error('Session regenerate failed:', err);
+        // Fallback: still try to set session values on existing session
+        req.session.user = userSessionObj;
+        req.session.ageConfirmed = true;
+        return req.session.save(() => res.redirect(to));
+      }
+
+      req.session.user = userSessionObj;
+
+      // IMPORTANT:
+      // After login, we consider age gate satisfied for this session,
+      // otherwise staff/admin pages will bounce you back to /age-check.
+      req.session.ageConfirmed = true;
+
+      return req.session.save(() => res.redirect(to));
+    });
+  }
+
+  // ---------------------------------------------------------
   // MODEL PRE-REGISTRATION (VETTING INTAKE)
-  // This is NOT an account creation flow yet.
-  // It stores an application so you can approve later.
   // ---------------------------------------------------------
   async function ensureApplicationsTable() {
     await dbRun(`
@@ -211,10 +236,6 @@ module.exports = function authRoutes(ctx) {
           ctx.audit.log(req, 'model_application_submitted', `Model application submitted: ${form.stage_name} (${form.email})`);
         } catch (_e) {}
 
-        // ---------------------------------------------------------
-        // Email notification to studio on every application
-        // IMPORTANT: Do NOT fail the submission if email fails.
-        // ---------------------------------------------------------
         const toStudio =
           process.env.MAIL_TO_MODELS_APPLY ||
           process.env.MAIL_TO_STUDIO ||
@@ -277,7 +298,6 @@ module.exports = function authRoutes(ctx) {
 
   // ---------------------------------------------------------
   // STAFF LOGIN (separate page)
-  // Uses users table; enforces staff/admin role.
   // ---------------------------------------------------------
   router.get('/staff-login', (req, res) => {
     if (req.session?.user?.role === 'admin') return res.redirect('/studio-panel');
@@ -306,7 +326,7 @@ module.exports = function authRoutes(ctx) {
         return res.render('staff-login', { error: 'This account is disabled.', message: null });
       }
 
-      req.session.user = {
+      const sessionUser = {
         id: user.id,
         username: user.username,
         role: user.role,
@@ -317,7 +337,7 @@ module.exports = function authRoutes(ctx) {
         ctx.audit.log(req, 'staff_login', `Staff ${user.username} logged in`);
       } catch (_e) {}
 
-      return req.session.save(() => res.redirect('/studio-panel'));
+      return loginSession(req, res, sessionUser, '/studio-panel');
     } catch (e) {
       console.error('Staff login error:', e);
       return res.status(500).render('staff-login', { error: 'Internal error during staff login.', message: null });
@@ -344,7 +364,7 @@ module.exports = function authRoutes(ctx) {
         return res.render('login', { error: 'Invalid username or password.', message: null });
       }
 
-      req.session.user = {
+      const sessionUser = {
         id: user.id,
         username: user.username,
         role: user.role,
@@ -355,7 +375,12 @@ module.exports = function authRoutes(ctx) {
         ctx.audit.log(req, 'login', `User ${user.username} logged in`);
       } catch (_e) {}
 
-      return req.session.save(() => res.redirect('/'));
+      // Redirect target based on role to reduce extra redirects
+      const redirectTo = user.role === 'admin' ? '/studio-panel'
+        : user.role === 'model' ? '/model/profile'
+        : '/';
+
+      return loginSession(req, res, sessionUser, redirectTo);
     } catch (e) {
       console.error('Login error:', e);
       return res.status(500).render('login', { error: 'Internal error during login.', message: null });

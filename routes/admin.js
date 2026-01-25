@@ -15,11 +15,20 @@ module.exports = function adminRoutes(ctx) {
   const { dbRun, dbGet, dbAll, ensureColumn } = ctx.db;
 
   function requireAdmin(req, res, next) {
-    if (!req.session?.ageConfirmed) return res.redirect('/age-check');
+    // IMPORTANT:
+    // Staff/admin should NOT be forced through the public age gate.
+    // Age gate is for public browsing; staff panel is authenticated access.
     if (!req.session?.user) return res.redirect('/staff-login');
+
     if (req.session.user.role !== 'admin' && req.session.user.role !== 'staff') {
       return res.status(403).render('error', { message: 'Access denied.' });
     }
+
+    // Make staff/admin sessions compatible with any routes that still check ageConfirmed
+    if (req.session && !req.session.ageConfirmed) {
+      req.session.ageConfirmed = true;
+    }
+
     return next();
   }
 
@@ -103,7 +112,6 @@ module.exports = function adminRoutes(ctx) {
 
   function isValidEmail(email) {
     const e = String(email || '').trim();
-    // Simple “good enough” check for routing. Avoids sending to blank/bad.
     return e.length >= 6 && e.includes('@') && e.includes('.');
   }
 
@@ -236,8 +244,6 @@ module.exports = function adminRoutes(ctx) {
 
   // ------------------------------------------------------------
   // Application Status Update
-  // - Approve: create invite token + email applicant
-  // - Reject: email rejection
   // ------------------------------------------------------------
   router.post('/studio-panel/applications/:id/status', requireAdmin, async (req, res) => {
     const id = parseInt(req.params.id, 10);
@@ -274,7 +280,6 @@ module.exports = function adminRoutes(ctx) {
 
       await dbRun(`UPDATE model_applications SET status=? WHERE id=?`, [status, id]);
 
-      // Audit (never block)
       try {
         await ctx.audit.log(req, {
           action: 'application_status_updated',
@@ -288,14 +293,12 @@ module.exports = function adminRoutes(ctx) {
 
       const baseUrl = String(process.env.BASE_URL || '').trim() || 'http://localhost:3001';
 
-      // ---------- APPROVE ----------
       if (status === 'approved') {
         if (!isValidEmail(applicantEmail)) {
           req.session.error = `Approved, but applicant email is invalid/missing: "${applicantEmailRaw}".`;
           return res.redirect(`/studio-panel/applications/${id}`);
         }
 
-        // Invalidate prior unused invites
         await dbRun(
           `UPDATE application_invites
            SET used=1, used_at=COALESCE(used_at, datetime('now'))
@@ -345,7 +348,6 @@ module.exports = function adminRoutes(ctx) {
         return res.redirect(`/studio-panel/applications/${id}`);
       }
 
-      // ---------- REJECT ----------
       if (status === 'rejected') {
         if (!isValidEmail(applicantEmail)) {
           req.session.message = 'Application rejected. (No valid email to notify applicant.)';
@@ -376,7 +378,6 @@ module.exports = function adminRoutes(ctx) {
         return res.redirect(`/studio-panel/applications/${id}`);
       }
 
-      // ---------- PENDING ----------
       req.session.message = 'Application status updated.';
       return res.redirect(`/studio-panel/applications/${id}`);
     } catch (e) {

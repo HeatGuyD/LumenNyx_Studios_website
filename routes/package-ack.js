@@ -1,3 +1,4 @@
+// FILE: routes/package-ack.js
 const express = require('express');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -6,7 +7,6 @@ const multer = require('multer');
 
 let puppeteer = null;
 try {
-  // npm i puppeteer
   puppeteer = require('puppeteer');
 } catch (e) {
   puppeteer = null;
@@ -31,13 +31,13 @@ function ensureAgeConfirmed(req, res, next) {
 
 function ensureAdmin(req, res, next) {
   if (!req.session?.ageConfirmed) return res.redirect('/age-check');
-  if (!req.session?.user) return res.redirect('/login');
+  if (!req.session?.user) return res.redirect('/staff-login'); // ✅ FIX: staff login route
   const role = req.session.user.role;
   if (role !== 'admin' && role !== 'staff') return res.status(403).render('error', { message: 'Forbidden' });
   next();
 }
 
-async function renderPdfFromHtml({ html, baseUrl }) {
+async function renderPdfFromHtml({ html }) {
   if (!puppeteer) throw new Error('Puppeteer is not installed. Run: npm i puppeteer');
 
   const args = (process.env.PUPPETEER_ARGS || '--no-sandbox,--disable-setuid-sandbox')
@@ -51,29 +51,16 @@ async function renderPdfFromHtml({ html, baseUrl }) {
   const browser = await puppeteer.launch(launchOptions);
   try {
     const page = await browser.newPage();
-    if (baseUrl) {
-      await page.setContent(html, { waitUntil: 'networkidle0' });
-    } else {
-      await page.setContent(html, { waitUntil: 'networkidle0' });
-    }
+    await page.setContent(html, { waitUntil: 'networkidle0' });
 
-    const pdf = await page.pdf({
+    return await page.pdf({
       format: 'Letter',
       printBackground: true,
       margin: { top: '0.55in', right: '0.6in', bottom: '0.55in', left: '0.6in' },
     });
-    return pdf;
   } finally {
     await browser.close();
   }
-}
-
-function safeBaseUrl(req) {
-  const APP_BASE_URL = process.env.APP_BASE_URL || '';
-  if (APP_BASE_URL && APP_BASE_URL.startsWith('http')) return APP_BASE_URL.replace(/\/+$/, '');
-  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-  const host = req.headers['x-forwarded-host'] || req.get('host');
-  return `${proto}://${host}`.replace(/\/+$/, '');
 }
 
 function requireDocType(docType) {
@@ -86,25 +73,19 @@ function requireDocType(docType) {
   return docType;
 }
 
-/**
- * Assumes you already have booking_recipients table from the earlier “package token” feature:
- * - booking_recipients(token TEXT UNIQUE, booking_id INTEGER, user_id INTEGER, status TEXT, etc)
- * If your table name differs, change the SELECTs below accordingly.
- */
 module.exports = function packageAckRoutes(ctx) {
   const router = express.Router();
 
   const { dbRun, dbGet } = ctx.db;
   const audit = ctx.audit;
 
-  // Ensure executed_documents table exists (safe to call at startup)
   (async () => {
     await dbRun(`
       CREATE TABLE IF NOT EXISTS executed_documents (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         booking_id INTEGER,
         user_id INTEGER NOT NULL,
-        doc_type TEXT NOT NULL,                -- privacy | payment | aftercare
+        doc_type TEXT NOT NULL,
         payload_json TEXT NOT NULL,
         signed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         signature_id INTEGER,
@@ -119,11 +100,10 @@ module.exports = function packageAckRoutes(ctx) {
     await dbRun(`CREATE INDEX IF NOT EXISTS idx_executed_docs_type ON executed_documents(doc_type);`);
   })().catch((e) => console.error('executed_documents init failed:', e));
 
-  // Optional: store executed PDFs in uploads/docs (admin + owner access already exists in your secure routes)
   const executedPdfDir = ctx.uploadDirs.docUploadsDir;
 
-  // Upload handler if you later want to attach supporting PDFs (not required for this feature)
-  const upload = multer({
+  // present but not required for your current flow
+  multer({
     storage: multer.diskStorage({
       destination: (_req, _file, cb) => cb(null, ctx.uploadDirs.docUploadsDir),
       filename: (req, file, cb) => {
@@ -138,35 +118,23 @@ module.exports = function packageAckRoutes(ctx) {
   });
 
   async function getRecipientByToken(token) {
-    const rec = await dbGet(
+    return dbGet(
       `SELECT br.*, b.title AS booking_title, b.shoot_date, b.location
        FROM booking_recipients br
        LEFT JOIN bookings b ON b.id = br.booking_id
        WHERE br.token = ? LIMIT 1`,
       [token]
     );
-    return rec;
   }
 
   async function getLatestSignature(userId) {
     return dbGet(`SELECT * FROM signatures WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, [userId]);
   }
 
-  async function upsertExecutedDoc({
-    bookingId,
-    userId,
-    docType,
-    payload,
-    signatureId,
-    ip,
-    ua,
-    executedPdfFilename,
-  }) {
+  async function insertExecutedDoc({ bookingId, userId, docType, payload, signatureId, ip, ua, executedPdfFilename }) {
     const payloadJson = JSON.stringify(payload);
     const docHash = sha256Hex(payloadJson);
 
-    // Keep last executed version (insert new row for strict history OR update latest).
-    // Recommendation: insert new row to preserve history.
     await dbRun(
       `INSERT INTO executed_documents (
          booking_id, user_id, doc_type,
@@ -180,9 +148,6 @@ module.exports = function packageAckRoutes(ctx) {
     return docHash;
   }
 
-  // -----------------------------
-  // PACKAGE FLOW: SHOW DOC (token)
-  // -----------------------------
   router.get('/package/:token/ack/:docType', ensureAgeConfirmed, async (req, res) => {
     try {
       const token = String(req.params.token || '').trim();
@@ -219,9 +184,6 @@ module.exports = function packageAckRoutes(ctx) {
     }
   });
 
-  // -----------------------------
-  // PACKAGE FLOW: SUBMIT DOC (token)
-  // -----------------------------
   router.post('/package/:token/ack/:docType', ensureAgeConfirmed, async (req, res) => {
     try {
       const token = String(req.params.token || '').trim();
@@ -233,21 +195,13 @@ module.exports = function packageAckRoutes(ctx) {
       const userId = rec.user_id;
       const bookingId = rec.booking_id;
 
-      // Must have a signature on file (your portal already collects signature images)
       const sig = await getLatestSignature(userId);
       if (!sig) {
         req.session.error = 'Please complete your signature first (Signature Setup).';
-        return res.redirect(`/package/${token}`); // or a dedicated signature page
+        return res.redirect(`/package/${token}`);
       }
 
-      // Build payload based on docType
-      const base = {
-        docType,
-        bookingId,
-        userId,
-        submittedAtIso: new Date().toISOString(),
-      };
-
+      const base = { docType, bookingId, userId, submittedAtIso: new Date().toISOString() };
       let payload = { ...base };
 
       if (docType === 'privacy') {
@@ -259,7 +213,6 @@ module.exports = function packageAckRoutes(ctx) {
           ack_contact_method: (req.body.ack_contact_method || '').trim() || null,
           notes: (req.body.notes || '').trim() || null,
         };
-
         if (!payload.ack_confidentiality || !payload.ack_data_handling) {
           req.session.error = 'Please check the required acknowledgments.';
           return res.redirect(`/package/${token}/ack/privacy`);
@@ -275,7 +228,6 @@ module.exports = function packageAckRoutes(ctx) {
           ack_payment_correct: req.body.ack_payment_correct === 'on',
           notes: (req.body.notes || '').trim() || null,
         };
-
         if (!payload.amount || !payload.method || !payload.date || !payload.ack_payment_correct) {
           req.session.error = 'Please complete payment details and check the acknowledgment.';
           return res.redirect(`/package/${token}/ack/payment`);
@@ -291,21 +243,18 @@ module.exports = function packageAckRoutes(ctx) {
           feedback: (req.body.feedback || '').trim() || null,
           concerns: (req.body.concerns || '').trim() || null,
         };
-
         if (!payload.ack_boundaries_respected || !payload.ack_aftercare_offered) {
           req.session.error = 'Please complete the required acknowledgments.';
           return res.redirect(`/package/${token}/ack/aftercare`);
         }
       }
 
-      // Render executed PDF from a print template
       const printViewMap = {
         privacy: 'print/print-privacy',
         payment: 'print/print-payment',
         aftercare: 'print/print-aftercare',
       };
 
-      const baseUrl = safeBaseUrl(req);
       const html = await new Promise((resolve, reject) => {
         res.render(
           printViewMap[docType],
@@ -329,17 +278,14 @@ module.exports = function packageAckRoutes(ctx) {
         );
       });
 
-      const pdf = await renderPdfFromHtml({ html, baseUrl });
+      const pdf = await renderPdfFromHtml({ html });
 
-      // Save executed PDF file
       const filename = `executed_${docType}_${userId}_${Date.now()}_${Math.random().toString(36).slice(2)}.pdf`;
-      const fullPath = path.join(executedPdfDir, filename);
-      fs.writeFileSync(fullPath, pdf);
+      fs.writeFileSync(path.join(executedPdfDir, filename), pdf);
 
-      // Persist executed doc record + hash
       const ip = getClientIp(req);
       const ua = req.headers['user-agent'] || '';
-      const docHash = await upsertExecutedDoc({
+      const docHash = await insertExecutedDoc({
         bookingId,
         userId,
         docType,
@@ -350,7 +296,6 @@ module.exports = function packageAckRoutes(ctx) {
         executedPdfFilename: filename,
       });
 
-      // Audit trail
       await audit.log(req, {
         action: 'executed_doc_signed',
         entityType: 'booking',
@@ -367,9 +312,6 @@ module.exports = function packageAckRoutes(ctx) {
     }
   });
 
-  // -----------------------------
-  // ADMIN: VIEW/DOWNLOAD EXECUTED PDF
-  // -----------------------------
   router.get('/studio-panel/executed/:id/pdf', ensureAdmin, async (req, res) => {
     try {
       const id = parseInt(req.params.id, 10);

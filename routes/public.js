@@ -1,4 +1,4 @@
-// routes/public.js
+// FILE: routes/public.js
 const express = require('express');
 
 module.exports = function publicRoutes(ctx) {
@@ -22,22 +22,19 @@ module.exports = function publicRoutes(ctx) {
       return res.status(403).render('age-gate', { error: 'You must be 18+ to enter.' });
     }
 
+    // Set + persist session before redirect
     req.session.ageConfirmed = true;
 
-    // Ensure session is persisted before redirect
+    // Ensure session is persisted before redirect (critical behind proxy/secure cookies)
     return req.session.save(() => res.redirect('/'));
   });
 
   // Home (booking portal landing / routing hub)
   router.get('/', (req, res) => {
-    // Age gate enforced globally in app.js middleware
-
     if (req.session?.user) {
       if (req.session.user.role === 'admin') return res.redirect('/studio-panel');
       if (req.session.user.role === 'model') return res.redirect('/model/profile');
-      // If other roles exist, keep them on landing for now
     }
-
     return res.render('index');
   });
 
