@@ -15,16 +15,14 @@ module.exports = function adminRoutes(ctx) {
   const { dbRun, dbGet, dbAll, ensureColumn } = ctx.db;
 
   function requireAdmin(req, res, next) {
-    // IMPORTANT:
     // Staff/admin should NOT be forced through the public age gate.
-    // Age gate is for public browsing; staff panel is authenticated access.
     if (!req.session?.user) return res.redirect('/staff-login');
 
     if (req.session.user.role !== 'admin' && req.session.user.role !== 'staff') {
       return res.status(403).render('error', { message: 'Access denied.' });
     }
 
-    // Make staff/admin sessions compatible with any routes that still check ageConfirmed
+    // Compatibility for any routes that still check ageConfirmed
     if (req.session && !req.session.ageConfirmed) {
       req.session.ageConfirmed = true;
     }
@@ -113,6 +111,20 @@ module.exports = function adminRoutes(ctx) {
   function isValidEmail(email) {
     const e = String(email || '').trim();
     return e.length >= 6 && e.includes('@') && e.includes('.');
+  }
+
+  function computeBaseUrl(req) {
+    // Prefer explicit BASE_URL when set correctly (e.g. https://booking.lumennyxstudios.com)
+    const envBase = String(process.env.BASE_URL || '').trim();
+    if (envBase) return envBase.replace(/\/+$/, '');
+
+    // Otherwise derive from request (requires trust proxy so req.protocol respects X-Forwarded-Proto)
+    const host = req.get('host');
+    const proto = req.protocol; // should be https behind nginx if trust proxy is set
+    if (host && proto) return `${proto}://${host}`;
+
+    // Final fallback
+    return 'http://localhost:3001';
   }
 
   // ------------------------------------------------------------
@@ -291,7 +303,7 @@ module.exports = function adminRoutes(ctx) {
         console.warn('Audit log failed (ignored):', e?.message || e);
       }
 
-      const baseUrl = String(process.env.BASE_URL || '').trim() || 'http://localhost:3001';
+      const baseUrl = computeBaseUrl(req);
 
       if (status === 'approved') {
         if (!isValidEmail(applicantEmail)) {
@@ -299,6 +311,7 @@ module.exports = function adminRoutes(ctx) {
           return res.redirect(`/studio-panel/applications/${id}`);
         }
 
+        // Invalidate any prior unused invites for this application
         await dbRun(
           `UPDATE application_invites
            SET used=1, used_at=COALESCE(used_at, datetime('now'))
@@ -320,6 +333,7 @@ module.exports = function adminRoutes(ctx) {
           inviteRowId: ins?.lastID,
           tokenPrefix: token.slice(0, 8),
           acceptUrl,
+          baseUrl,
         });
 
         const subject = 'LumenNyx Studios – Application Approved';
