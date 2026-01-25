@@ -7,27 +7,87 @@
   <link rel="stylesheet" href="/css/style.css" />
 
   <style>
-    /* Print helpers: print only the release/consent blocks when requested */
+    /* Print helpers */
     @media print {
       .no-print { display: none !important; }
       .print-block { break-inside: avoid; }
       body { background: #fff !important; }
       a[href]:after { content: ""; }
     }
-    .print-toolbar {
-      display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0 0 0;
+
+    .muted { color:#9aa0b5; font-size:0.92rem; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:0.9rem; word-break: break-word; }
+
+    /* ✅ FIX: overlay stealing clicks */
+    .hero { position: relative; }
+    .hero-logo-bg { pointer-events: none !important; }
+    .hero-buttons { position: relative; z-index: 5; }
+
+    /* ✅ anchor scroll offset under sticky header */
+    #identity, #docs, #photos, #release, #safety { scroll-margin-top: 110px; }
+
+    /* Section spacing */
+    .section-spacer { height: 8px; }
+    .portal-grid { display: grid; grid-template-columns: 1fr; gap: 18px; }
+
+    /* Make hero pills look/behave like tabs */
+    .hero-buttons .btn { cursor: pointer; }
+    .hero-buttons .btn.active-pill {
+      filter: brightness(1.05);
+      box-shadow: 0 0 0 2px rgba(255, 200, 60, 0.35);
     }
-    .muted {
-      color: #9aa0b5;
-      font-size: 0.9rem;
+
+    /* Small help blocks */
+    .help-card {
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 12px 14px;
+      background: rgba(0,0,0,0.25);
     }
-    .mono {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-size: 0.9rem;
-      word-break: break-word;
+
+    /* Inputs in case your CSS is missing styling */
+    .form-grid label { display:block; }
+    .form-grid input, .form-grid select, .form-grid textarea {
+      width: 100%;
+      margin-top: 6px;
+      padding: 10px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(0,0,0,0.30);
+      color: inherit;
+      outline: none;
     }
+    .form-grid textarea { min-height: 92px; resize: vertical; }
+
+    .two-col {
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 860px) {
+      .two-col { grid-template-columns: 1fr; }
+    }
+
+    .mini-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top: 12px; }
+
+    .list-table { width:100%; border-collapse: collapse; }
+    .list-table th, .list-table td { padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.08); vertical-align: top; }
+    .list-table th { text-align:left; font-weight: 600; color: rgba(255,255,255,0.85); }
+
+    .pill {
+      display:inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(0,0,0,0.28);
+    }
+    .pill.ok { border-color: rgba(0,255,150,0.25); }
+    .pill.warn { border-color: rgba(255,200,60,0.25); }
+    .pill.bad { border-color: rgba(255,80,80,0.25); }
   </style>
 </head>
+
 <body>
   <!-- HEADER -->
   <header class="site-header no-print">
@@ -55,6 +115,7 @@
   </header>
 
   <main class="home" style="max-width: 1100px; margin: 1.5rem auto 2rem auto; padding: 0 1.25rem;">
+
     <!-- HERO / INTRO -->
     <section class="hero no-print">
       <div class="hero-logo-bg"></div>
@@ -62,7 +123,7 @@
       <h2>Model Profile & Legal Portal</h2>
       <p>
         This private portal lets you manage identity details, compliance documents,
-        your general/master release, and consent / safety preferences for LumenNyx Studios
+        your general/master release, and consent/safety preferences for LumenNyx Studios
         (independent production studio based in Wallkill, NY 12589).
       </p>
       <p class="hero-note">
@@ -71,66 +132,15 @@
       </p>
 
       <div class="hero-buttons">
-        <a href="#identity" class="btn primary">Identity &amp; Contact</a>
-        <a href="#docs" class="btn secondary">Documents</a>
-        <a href="#photos" class="btn secondary">Photos</a>
-        <a href="#release" class="btn secondary">Master Release</a>
-        <a href="#safety" class="btn secondary">Safety &amp; Consent</a>
+        <a href="#identity" class="btn primary" data-pill="#identity">Identity &amp; Contact</a>
+        <a href="#docs" class="btn secondary" data-pill="#docs">Documents</a>
+        <a href="#photos" class="btn secondary" data-pill="#photos">Photos</a>
+        <a href="#release" class="btn secondary" data-pill="#release">Master Release</a>
+        <a href="#safety" class="btn secondary" data-pill="#safety">Safety &amp; Consent</a>
       </div>
     </section>
 
-    <!-- ✅ NEW: AGENCY / INDEPENDENT PATH CLARIFICATION (ADD-ONLY) -->
-    <section class="portal-section no-print">
-      <h3>Working With Agencies &amp; Independent Talent</h3>
-      <p class="portal-note" style="margin-bottom:0.6rem;">
-        We work with both represented talent (via agencies/managers) and independent performers.
-        Compliance standards are the same for all shoots. Process timing differs slightly depending on representation.
-      </p>
-
-      <div class="documents-list" style="margin-top:0.6rem;">
-        <table>
-          <thead>
-            <tr>
-              <th style="width:33%;">For Agencies / Booking Representatives</th>
-              <th style="width:33%;">For Independent Talent</th>
-              <th style="width:34%;">Timing &amp; Documentation</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>
-                <ul style="margin:0; padding-left:1.1rem;">
-                  <li>We coordinate bookings directly with agencies or managers.</li>
-                  <li>Call sheets, scope, rates, and boundaries confirmed in advance.</li>
-                  <li>Payment and paperwork handled per agency preference.</li>
-                </ul>
-              </td>
-              <td>
-                <ul style="margin:0; padding-left:1.1rem;">
-                  <li>Initial conversation first (scope, rate, boundaries).</li>
-                  <li>Mutual agreement confirmed in writing.</li>
-                  <li>No paperwork required just to ask questions or inquire.</li>
-                </ul>
-              </td>
-              <td>
-                <ul style="margin:0; padding-left:1.1rem;">
-                  <li>All age verification and consent documentation is completed <strong>after booking terms are agreed upon</strong>, and <strong>prior to any filming</strong>.</li>
-                  <li>Compliance records are stored securely and are not publicly accessible.</li>
-                </ul>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <p class="field-help" style="margin-top:0.75rem;">
-        This portal supports professional workflows and intentionally controlled access. If you are represented,
-        your booking representative may prefer to handle certain confirmations externally before portal completion.
-      </p>
-    </section>
-    <!-- END NEW BLOCK -->
-
-    <!-- FLASH MESSAGES -->
+    <!-- Flash -->
     <% if (message) { %>
       <div class="alert success no-print"><%= message %></div>
     <% } %>
@@ -138,12 +148,10 @@
       <div class="alert error no-print"><%= error %></div>
     <% } %>
 
-    <!-- PROFILE STATUS OVERVIEW -->
+    <!-- Status Overview -->
     <section class="portal-section no-print">
       <h3>Profile Status Overview</h3>
-      <p class="portal-note">
-        This summary helps you and the studio quickly see what is on file and what is still missing.
-      </p>
+      <p class="portal-note">Quick view of what is on file and what is still missing.</p>
 
       <div class="status-summary">
         <div class="status-pill <%= (profile && profile.legal_name && profile.date_of_birth) ? 'ok' : 'missing' %>">
@@ -168,9 +176,370 @@
       </div>
     </section>
 
-    <!-- (Everything else in your profile page stays exactly as you pasted it) -->
-    <!-- KEEP THE REST OF YOUR FILE AS-IS BELOW THIS LINE -->
-    <!-- NOTE: I’m not re-pasting the remaining sections here to avoid accidental drift. -->
+    <div class="portal-grid">
+
+      <!-- ========================================================= -->
+      <!-- IDENTITY -->
+      <!-- ========================================================= -->
+      <section id="identity" class="portal-section">
+        <h3>Identity &amp; Contact</h3>
+        <p class="portal-note">
+          Enter legal identity details used for compliance records. These records are not public.
+        </p>
+
+        <div class="help-card no-print">
+          <div class="pill <%= (profile && profile.legal_name && profile.date_of_birth) ? 'ok' : 'warn' %>">
+            <%= (profile && profile.legal_name && profile.date_of_birth) ? 'Identity: On file' : 'Identity: Needs completion' %>
+          </div>
+          <p class="muted" style="margin:8px 0 0 0;">
+            Use your legal name and date of birth. Preferred/stage name can be added below.
+          </p>
+        </div>
+
+        <form action="/model/profile" method="POST" class="form-grid" style="margin-top: 14px;">
+          <div class="two-col">
+            <label>
+              Legal Name
+              <input name="legal_name" type="text" value="<%= profile?.legal_name || '' %>" required />
+            </label>
+
+            <label>
+              Date of Birth
+              <input name="date_of_birth" type="date" value="<%= profile?.date_of_birth || '' %>" required />
+            </label>
+
+            <label>
+              Preferred / Stage Name (optional)
+              <input name="preferred_name" type="text" value="<%= profile?.preferred_name || '' %>" />
+            </label>
+
+            <label>
+              Phone (optional)
+              <input name="phone" type="text" value="<%= profile?.phone || '' %>" />
+            </label>
+
+            <label>
+              Location (optional)
+              <input name="location" type="text" value="<%= profile?.location || '' %>" />
+            </label>
+
+            <label>
+              Email (read-only)
+              <input type="email" value="<%= (currentUser && currentUser.email) ? currentUser.email : (profile?.email || '') %>" readonly />
+            </label>
+          </div>
+
+          <div class="mini-actions">
+            <button class="btn primary" type="submit">Save Identity</button>
+            <a class="btn secondary no-print" href="#docs" data-pill="#docs">Next: Documents</a>
+          </div>
+        </form>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- DOCUMENTS -->
+      <!-- ========================================================= -->
+      <section id="docs" class="portal-section">
+        <h3>Documents</h3>
+        <p class="portal-note">
+          Upload required compliance documents (ID, W-9, etc.). Only authorized staff can access these files.
+        </p>
+
+        <div class="help-card no-print">
+          <div class="pill <%= (documents && documents.length) ? 'ok' : 'warn' %>">
+            <%= (documents && documents.length) ? ('Documents: ' + documents.length + ' on file') : 'Documents: none uploaded yet' %>
+          </div>
+          <p class="muted" style="margin:8px 0 0 0;">
+            If upload fails, we’ll check server-side route + permissions for <span class="mono">/uploads/docs</span>.
+          </p>
+        </div>
+
+        <!-- Upload -->
+        <form action="/model/documents/upload" method="POST" enctype="multipart/form-data" class="form-grid" style="margin-top: 14px;">
+          <div class="two-col">
+            <label>
+              Document Type
+              <select name="doc_type" required>
+                <option value="">Select…</option>
+                <option value="id_front">ID (Front)</option>
+                <option value="id_back">ID (Back)</option>
+                <option value="w9">W-9</option>
+                <option value="std_test">STD Test (optional)</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+
+            <label>
+              Upload File
+              <input type="file" name="file" accept=".jpg,.jpeg,.png,.pdf" required />
+            </label>
+          </div>
+
+          <div class="mini-actions">
+            <button class="btn primary" type="submit">Upload Document</button>
+            <a class="btn secondary no-print" href="#photos" data-pill="#photos">Next: Photos</a>
+          </div>
+        </form>
+
+        <!-- List -->
+        <div style="margin-top: 14px;">
+          <h4 style="margin-bottom: 8px;">On File</h4>
+          <% if (documents && documents.length) { %>
+            <table class="list-table">
+              <thead>
+                <tr>
+                  <th style="width: 22%;">Type</th>
+                  <th style="width: 45%;">Filename</th>
+                  <th style="width: 18%;">Uploaded</th>
+                  <th style="width: 15%;">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% documents.forEach(function(d){ %>
+                  <tr>
+                    <td><span class="pill ok"><%= d.doc_type || 'document' %></span></td>
+                    <td class="mono"><%= d.filename || d.path || '' %></td>
+                    <td class="muted"><%= d.created_at || '' %></td>
+                    <td>
+                      <% if (d.public_url) { %>
+                        <a class="btn secondary" style="padding:0.25rem 0.7rem;font-size:0.8rem;" href="<%= d.public_url %>" target="_blank" rel="noopener">View</a>
+                      <% } else { %>
+                        <span class="muted">—</span>
+                      <% } %>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          <% } else { %>
+            <p class="muted">No documents uploaded yet.</p>
+          <% } %>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- PHOTOS -->
+      <!-- ========================================================= -->
+      <section id="photos" class="portal-section">
+        <h3>Photos</h3>
+        <p class="portal-note">
+          Upload a headshot and optional portfolio images for internal reference.
+        </p>
+
+        <div class="help-card no-print">
+          <div class="pill <%= (photos && photos.length) ? 'ok' : 'warn' %>">
+            <%= (photos && photos.length) ? ('Photos: ' + photos.length + ' on file') : 'Photos: none uploaded yet' %>
+          </div>
+          <p class="muted" style="margin:8px 0 0 0;">
+            Supported: JPG/PNG. If it fails, we’ll verify server route + uploads directory permissions.
+          </p>
+        </div>
+
+        <form action="/model/photos/upload" method="POST" enctype="multipart/form-data" class="form-grid" style="margin-top: 14px;">
+          <div class="two-col">
+            <label>
+              Photo Type
+              <select name="photo_type" required>
+                <option value="">Select…</option>
+                <option value="headshot">Headshot</option>
+                <option value="portfolio">Portfolio</option>
+                <option value="id_selfie">ID Selfie (optional)</option>
+              </select>
+            </label>
+
+            <label>
+              Upload Photo
+              <input type="file" name="file" accept=".jpg,.jpeg,.png" required />
+            </label>
+          </div>
+
+          <div class="mini-actions">
+            <button class="btn primary" type="submit">Upload Photo</button>
+            <a class="btn secondary no-print" href="#release" data-pill="#release">Next: Master Release</a>
+          </div>
+        </form>
+
+        <div style="margin-top: 14px;">
+          <h4 style="margin-bottom: 8px;">On File</h4>
+          <% if (photos && photos.length) { %>
+            <table class="list-table">
+              <thead>
+                <tr>
+                  <th style="width: 22%;">Type</th>
+                  <th style="width: 48%;">File</th>
+                  <th style="width: 18%;">Uploaded</th>
+                  <th style="width: 12%;">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% photos.forEach(function(p){ %>
+                  <tr>
+                    <td><span class="pill ok"><%= p.photo_type || 'photo' %></span></td>
+                    <td class="mono"><%= p.filename || p.path || '' %></td>
+                    <td class="muted"><%= p.created_at || '' %></td>
+                    <td>
+                      <% if (p.public_url) { %>
+                        <a class="btn secondary" style="padding:0.25rem 0.7rem;font-size:0.8rem;" href="<%= p.public_url %>" target="_blank" rel="noopener">View</a>
+                      <% } else { %>
+                        <span class="muted">—</span>
+                      <% } %>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          <% } else { %>
+            <p class="muted">No photos uploaded yet.</p>
+          <% } %>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- MASTER RELEASE -->
+      <!-- ========================================================= -->
+      <section id="release" class="portal-section print-block">
+        <h3>Master Release</h3>
+        <p class="portal-note">
+          Review and sign the master release. This confirms consent, usage rights, and documentation.
+        </p>
+
+        <div class="help-card no-print">
+          <div class="pill <%= masterRelease ? 'ok' : 'warn' %>">
+            <%= masterRelease ? 'Master Release: signed' : 'Master Release: not signed yet' %>
+          </div>
+          <p class="muted" style="margin:8px 0 0 0;">
+            If you need to print a copy for records, use your browser print after signing.
+          </p>
+        </div>
+
+        <% if (!masterRelease) { %>
+          <form action="/model/release/sign" method="POST" class="form-grid" style="margin-top: 14px;">
+            <label>
+              Type your full legal name to sign
+              <input name="signature_name" type="text" value="<%= profile?.legal_name || '' %>" required />
+            </label>
+
+            <label>
+              Confirmation
+              <select name="confirm" required>
+                <option value="">Select…</option>
+                <option value="yes">I agree and authorize the release</option>
+              </select>
+            </label>
+
+            <div class="mini-actions">
+              <button class="btn primary" type="submit">Sign Master Release</button>
+              <a class="btn secondary no-print" href="#safety" data-pill="#safety">Next: Safety & Consent</a>
+            </div>
+          </form>
+        <% } else { %>
+          <p style="margin-top: 12px;"><span class="pill ok">Signed</span> <span class="muted">Thank you. Your release is on file.</span></p>
+        <% } %>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- SAFETY & CONSENT -->
+      <!-- ========================================================= -->
+      <section id="safety" class="portal-section print-block">
+        <h3>Safety &amp; Consent</h3>
+        <p class="portal-note">
+          Save boundaries and preferences for reference during planning and on-set workflow.
+        </p>
+
+        <div class="help-card no-print">
+          <div class="pill <%= policies ? 'ok' : 'warn' %>">
+            <%= policies ? 'Safety & Consent: saved' : 'Safety & Consent: not completed' %>
+          </div>
+          <p class="muted" style="margin:8px 0 0 0;">
+            You can update these any time. Studio will confirm verbally on shoot day as well.
+          </p>
+        </div>
+
+        <form action="/model/policies/save" method="POST" class="form-grid" style="margin-top: 14px;">
+          <div class="two-col">
+            <label>
+              Condom Preference
+              <select name="condom_preference">
+                <option value="">Select…</option>
+                <option value="required" <%= (policies?.condom_preference === 'required') ? 'selected' : '' %>>Required</option>
+                <option value="preferred" <%= (policies?.condom_preference === 'preferred') ? 'selected' : '' %>>Preferred</option>
+                <option value="optional" <%= (policies?.condom_preference === 'optional') ? 'selected' : '' %>>Optional / Discuss</option>
+              </select>
+            </label>
+
+            <label>
+              Testing Preference
+              <select name="testing_preference">
+                <option value="">Select…</option>
+                <option value="required" <%= (policies?.testing_preference === 'required') ? 'selected' : '' %>>Required</option>
+                <option value="preferred" <%= (policies?.testing_preference === 'preferred') ? 'selected' : '' %>>Preferred</option>
+                <option value="optional" <%= (policies?.testing_preference === 'optional') ? 'selected' : '' %>>Optional / Discuss</option>
+              </select>
+            </label>
+          </div>
+
+          <label>
+            Hard Limits (optional)
+            <textarea name="hard_limits" placeholder="List any hard limits (no-go)."><%= policies?.hard_limits || '' %></textarea>
+          </label>
+
+          <label>
+            Notes / Preferences (optional)
+            <textarea name="notes" placeholder="Anything you want the studio to know."><%= policies?.notes || '' %></textarea>
+          </label>
+
+          <div class="mini-actions">
+            <button class="btn primary" type="submit">Save Safety & Consent</button>
+            <a class="btn secondary no-print" href="#identity" data-pill="#identity">Back to Top</a>
+          </div>
+        </form>
+      </section>
+
+    </div><!-- /portal-grid -->
   </main>
+
+  <script>
+    (function () {
+      function setActive(hash) {
+        var pills = document.querySelectorAll('[data-pill]');
+        pills.forEach(function(a){
+          a.classList.remove('active-pill');
+          if (a.getAttribute('data-pill') === hash) a.classList.add('active-pill');
+        });
+      }
+
+      function scrollToHash(hash) {
+        if (!hash) return;
+        var el = document.querySelector(hash);
+        if (!el) return;
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      // Click behavior: smooth scroll + active highlight
+      document.querySelectorAll('[data-pill]').forEach(function(a){
+        a.addEventListener('click', function(e){
+          var hash = a.getAttribute('data-pill');
+          if (!hash) return;
+          // allow normal anchor update
+          setActive(hash);
+          // smooth scroll after hash updates
+          setTimeout(function(){ scrollToHash(hash); }, 10);
+        });
+      });
+
+      // On load, if hash exists, highlight and scroll
+      if (window.location.hash) {
+        setActive(window.location.hash);
+        setTimeout(function(){ scrollToHash(window.location.hash); }, 30);
+      } else {
+        setActive('#identity');
+      }
+
+      // On hash change (back/forward)
+      window.addEventListener('hashchange', function(){
+        setActive(window.location.hash || '#identity');
+      });
+    })();
+  </script>
 </body>
 </html>
