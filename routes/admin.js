@@ -486,6 +486,119 @@ module.exports = function adminRoutes(ctx) {
     }
   });
 
+  // ------------------------------------------------------------
+  // NEW: Model Inspect View (used by your studioModelView.ejs page)
+  // GET /studio-panel/models/:id
+  // ------------------------------------------------------------
+  router.get('/studio-panel/models/:id', requireAdmin, async (req, res) => {
+    try {
+      const flash = consumeFlash(req);
+
+      const id = parseInt(req.params.id, 10);
+      if (!Number.isFinite(id) || id <= 0) {
+        return res.status(400).render('error', { message: 'Invalid model id.' });
+      }
+
+      const user = await dbGet(
+        `SELECT id, username, role, status, email, created_at
+         FROM users
+         WHERE id=? AND role='model'
+         LIMIT 1`,
+        [id]
+      );
+      if (!user) return res.status(404).render('error', { message: 'Model not found.' });
+
+      const profile = await dbGet(
+        `SELECT *
+         FROM model_profiles
+         WHERE user_id=?
+         LIMIT 1`,
+        [id]
+      );
+
+      const documents = await dbAll(
+        `SELECT id, user_id, doc_type, filename, uploaded_at
+         FROM compliance_documents
+         WHERE user_id=?
+         ORDER BY datetime(uploaded_at) DESC, id DESC`,
+        [id]
+      );
+
+      const photos = await dbAll(
+        `SELECT id, user_id, filename, caption, is_primary, priority, uploaded_at
+         FROM model_photos
+         WHERE user_id=?
+         ORDER BY is_primary DESC, priority DESC, datetime(uploaded_at) DESC, id DESC`,
+        [id]
+      );
+
+      const masterRelease = await dbGet(
+        `SELECT *
+         FROM master_releases
+         WHERE user_id=?
+         ORDER BY datetime(signed_at) DESC, id DESC
+         LIMIT 1`,
+        [id]
+      );
+
+      const policies = await dbGet(
+        `SELECT *
+         FROM consent_policies
+         WHERE user_id=?
+         LIMIT 1`,
+        [id]
+      );
+
+      return res.render('studio-model-view', {
+        staff: req.session.user,
+        user,
+        profile: profile || null,
+        documents: documents || [],
+        photos: photos || [],
+        masterRelease: masterRelease || null,
+        policies: policies || null,
+        message: flash.message,
+        error: flash.error,
+      });
+    } catch (e) {
+      console.error('Studio model view error:', e);
+      return res.status(500).render('error', { message: 'Could not load model.' });
+    }
+  });
+
+  // ------------------------------------------------------------
+  // NEW: Update model account status
+  // POST /studio-panel/models/:id/status
+  // ------------------------------------------------------------
+  router.post('/studio-panel/models/:id/status', requireAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const status = String(req.body?.status || '').trim().toLowerCase();
+      const allowed = new Set(['pending', 'approved', 'active', 'disabled']);
+
+      if (!Number.isFinite(id) || id <= 0 || !allowed.has(status)) {
+        return res.status(400).render('error', { message: 'Invalid request.' });
+      }
+
+      await dbRun(`UPDATE users SET status=? WHERE id=? AND role='model'`, [status, id]);
+
+      try {
+        await ctx.audit.log(req, {
+          action: 'model_status_updated',
+          entityType: 'user',
+          entityId: id,
+          details: { status },
+        });
+      } catch (_) {}
+
+      req.session.message = 'Model status updated.';
+      return res.redirect(`/studio-panel/models/${id}`);
+    } catch (e) {
+      console.error('Model status update error:', e);
+      return res.status(500).render('error', { message: 'Could not update model status.' });
+    }
+  });
+
   router.get('/studio-panel/docs', requireAdmin, (req, res) => {
     return res.redirect('/studio-panel/executed');
   });
