@@ -1,0 +1,97 @@
+<!-- FILE: views/model-legal-index.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Legal Documents – LumenNyx Studios</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/" class="brand-link">
+        <span class="brand-mark"><img src="/img/lumennyx-mark.png" alt="LumenNyx"></span>
+        <span class="brand-text">LUMENNYX STUDIOS</span>
+      </a>
+      <nav class="main-nav">
+        <a href="/model/profile">Model Portal</a>
+        <a href="/model/legal" class="active">Legal</a>
+        <a href="/model/bookings">My Bookings</a>
+        <a href="/model/scenes">My Scenes</a>
+        <a href="/model/signature">Signature</a>
+        <form action="/logout" method="POST" style="display:inline;">
+          <button class="btn secondary" style="padding:0.25rem 0.9rem;font-size:0.8rem;">Logout</button>
+        </form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="home" style="max-width: 1000px; margin: 1.5rem auto 2rem auto; padding: 0 1.25rem;">
+    <section class="portal-section">
+      <h2>Legal Documents</h2>
+      <p class="portal-note">
+        These documents are signed inside the portal. Each signature produces an executed PDF with timestamp and audit trail.
+      </p>
+
+      <% if (message) { %><div class="alert success"><%= message %></div><% } %>
+      <% if (error) { %><div class="alert error"><%= error %></div><% } %>
+
+      <div class="status-summary" style="margin-top:10px;">
+        <div class="status-pill <%= requiredMissing === 0 ? 'ok' : 'missing' %>">
+          <span class="label">Required Missing:</span>
+          <span><%= requiredMissing %></span>
+        </div>
+        <div class="status-pill <%= requiredNeedsResign === 0 ? 'ok' : 'pending' %>">
+          <span class="label">Required Needs Re-Sign:</span>
+          <span><%= requiredNeedsResign %></span>
+        </div>
+      </div>
+
+      <div class="documents-list" style="margin-top:12px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Document</th>
+              <th>Version</th>
+              <th>Required</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% (templates || []).forEach((t) => { %>
+              <tr>
+                <td><strong><%= t.title %></strong></td>
+                <td class="mono"><%= t.version %></td>
+                <td><%= Number(t.required) === 1 ? 'Yes' : 'No' %></td>
+                <td>
+                  <% if (t.needs_resign) { %>
+                    <span class="badge pending">Needs Re-Sign</span>
+                  <% } else if (t.signed) { %>
+                    <span class="badge ok">Signed</span>
+                  <% } else { %>
+                    <span class="badge missing">Not Signed</span>
+                  <% } %>
+                </td>
+                <td style="white-space:nowrap;">
+                  <a class="btn secondary" href="/model/legal/<%= t.slug %>">
+                    <%= (t.signed && !t.needs_resign) ? 'View' : (t.needs_resign ? 'Re-Sign' : 'Sign') %>
+                  </a>
+                </td>
+              </tr>
+            <% }) %>
+            <% if (!templates || !templates.length) { %>
+              <tr><td colspan="5" class="muted">No legal documents are available yet.</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="field-help" style="margin-top:10px;">
+        If you need to update your signature, go to <a href="/model/signature">Signature Setup</a>.
+      </p>
+    </section>
+  </main>
+</body>
+</html>

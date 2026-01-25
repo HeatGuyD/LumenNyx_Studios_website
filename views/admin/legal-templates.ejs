@@ -1,0 +1,82 @@
+<!-- FILE: views/admin/legal-templates.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Legal Templates – LumenNyx Studios</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="home">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/studio-panel" class="brand-link">
+        <span class="brand-mark"><img src="/img/lumennyx-mark.png" alt="LumenNyx"></span>
+        <span class="brand-text">LUMENNYX STUDIOS</span>
+      </a>
+      <nav class="main-nav">
+        <a href="/studio-panel">Studio Panel</a>
+        <a href="/studio-panel/legal-templates" class="active">Legal Templates</a>
+        <a href="/studio-panel/legal-executed">Signed Legal</a>
+        <a href="/studio-panel/executed">Executed (All)</a>
+        <form action="/logout" method="POST" style="display:inline;">
+          <button type="submit" class="btn secondary" style="padding:0.3rem 0.9rem;font-size:0.75rem;">Logout</button>
+        </form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-wrapper">
+    <section class="portal-section">
+      <h2>Legal Template Library</h2>
+      <p class="portal-note">
+        These templates are what models will sign inside the portal. Each signature generates a locked executed PDF
+        with timestamp + IP + document version.
+      </p>
+
+      <% if (message) { %><div class="alert success"><%= message %></div><% } %>
+      <% if (error) { %><div class="alert error"><%= error %></div><% } %>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin: 12px 0;">
+        <a class="btn primary" href="/studio-panel/legal-templates/new">New Template</a>
+        <a class="btn secondary" href="/studio-panel/legal-executed">View Signed Legal Docs</a>
+      </div>
+
+      <div class="documents-list">
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Slug</th>
+              <th>Version</th>
+              <th>Required</th>
+              <th>Active</th>
+              <th>Updated</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% (templates || []).forEach((t) => { %>
+              <tr>
+                <td><strong><%= t.title %></strong></td>
+                <td class="mono"><%= t.slug %></td>
+                <td><%= t.version %></td>
+                <td><%= Number(t.required) === 1 ? 'Yes' : 'No' %></td>
+                <td><%= Number(t.active) === 1 ? 'Yes' : 'No' %></td>
+                <td class="muted"><%= t.updated_at || t.created_at || '' %></td>
+                <td style="white-space:nowrap;">
+                  <a class="btn secondary" href="/studio-panel/legal-templates/<%= t.id %>">Edit</a>
+                  <a class="btn secondary" href="/model/legal/<%= t.slug %>" target="_blank" rel="noopener">Preview</a>
+                </td>
+              </tr>
+            <% }) %>
+            <% if (!templates || !templates.length) { %>
+              <tr><td colspan="7" class="muted">No templates created yet.</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

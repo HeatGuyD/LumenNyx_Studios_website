@@ -1,37 +1,66 @@
 // FILE: db.js
-const sqlite3 = require("sqlite3").verbose();
+// NOTE: This version replaces node-sqlite3 ("sqlite3") with better-sqlite3 for reliability.
+// API preserved: dbRun/dbGet/dbAll/ensureColumn/initDb
+
 const path = require("path");
+const fs = require("fs");
+const Database = require("better-sqlite3");
 
 const dbPath = path.join(__dirname, "database.sqlite");
-const db = new sqlite3.Database(dbPath);
+
+// Ensure directory exists (usually __dirname already exists, but safe in case of symlinks)
+try {
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+} catch (_) {}
+
+// Open DB
+const db = new Database(dbPath, {
+  // You can set fileMustExist: true if you want hard failure on missing DB.
+  // fileMustExist: false,
+});
+
+// Recommended pragmas for production stability/perf on SQLite
+db.pragma("journal_mode = WAL");
+db.pragma("foreign_keys = ON");
+db.pragma("synchronous = NORMAL");
 
 // ----------------------
-// Promisified helpers
+// Promisified helpers (wrap sync better-sqlite3 calls in Promises)
 // ----------------------
 function dbRun(sql, params = []) {
   return new Promise((resolve, reject) => {
-    db.run(sql, params, function (err) {
-      if (err) return reject(err);
-      resolve(this);
-    });
+    try {
+      const stmt = db.prepare(sql);
+      const info = stmt.run(params);
+      // Match node-sqlite3's "this" shape as closely as possible
+      resolve({ lastID: info.lastInsertRowid, changes: info.changes });
+    } catch (err) {
+      reject(err);
+    }
   });
 }
 
 function dbGet(sql, params = []) {
   return new Promise((resolve, reject) => {
-    db.get(sql, params, function (err, row) {
-      if (err) return reject(err);
+    try {
+      const stmt = db.prepare(sql);
+      const row = stmt.get(params);
       resolve(row);
-    });
+    } catch (err) {
+      reject(err);
+    }
   });
 }
 
 function dbAll(sql, params = []) {
   return new Promise((resolve, reject) => {
-    db.all(sql, params, function (err, rows) {
-      if (err) return reject(err);
+    try {
+      const stmt = db.prepare(sql);
+      const rows = stmt.all(params);
       resolve(rows);
-    });
+    } catch (err) {
+      reject(err);
+    }
   });
 }
 
@@ -67,7 +96,10 @@ async function ensureColumn(tableName, columnDef) {
   if (_hasNonConstantDefault(defUpper)) {
     const stripped = _stripDefaultClause(columnDef);
 
-    console.log(`DB MIGRATION: Adding column ${columnName} to ${tableName} (without non-constant DEFAULT)`);
+    console.log(
+      `DB MIGRATION: Adding column ${columnName} to ${tableName} (without non-constant DEFAULT)`
+    );
+
     await dbRun(`ALTER TABLE ${tableName} ADD COLUMN ${stripped};`);
 
     try {
@@ -77,7 +109,10 @@ async function ensureColumn(tableName, columnDef) {
          WHERE ${columnName} IS NULL OR ${columnName} = ''`
       );
     } catch (e) {
-      console.warn(`DB MIGRATION: Backfill failed for ${tableName}.${columnName}:`, e?.message || e);
+      console.warn(
+        `DB MIGRATION: Backfill failed for ${tableName}.${columnName}:`,
+        e?.message || e
+      );
     }
     return;
   }
@@ -95,6 +130,7 @@ async function initDb() {
   if (_initPromise) return _initPromise;
 
   _initPromise = (async () => {
+    // (foreign_keys already enabled via pragma, but keep it explicit)
     await dbRun("PRAGMA foreign_keys = ON;");
 
     await dbRun(`
@@ -215,6 +251,39 @@ async function initDb() {
     await ensureColumn("master_releases", "signature_id INTEGER");
     await ensureColumn("master_releases", "signature_method TEXT");
     await ensureColumn("master_releases", "signature_png TEXT");
+        // ------------------------------------------------------------
+    // Document Requests
+    // - Studio staff can request a model to execute a specific doc.
+    // - Docs routes will later enforce "must have pending request".
+    // ------------------------------------------------------------
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS document_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        doc_type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',  -- pending | completed | void
+        requested_by_user_id INTEGER,
+        note TEXT,
+        requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        completed_at DATETIME,
+        voided_at DATETIME,
+        executed_document_id INTEGER,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+      )
+    `);
+
+    // Helpful indexes
+    await dbRun(`CREATE INDEX IF NOT EXISTS idx_docreq_user ON document_requests(user_id);`);
+    await dbRun(`CREATE INDEX IF NOT EXISTS idx_docreq_type ON document_requests(doc_type);`);
+    await dbRun(`CREATE INDEX IF NOT EXISTS idx_docreq_status ON document_requests(status);`);
+
+    // Prevent duplicate pending requests for same user+doc_type
+    // (SQLite supports partial indexes)
+    await dbRun(`
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_docreq_one_pending
+      ON document_requests(user_id, doc_type)
+      WHERE status='pending'
+    `);
 
     await dbRun(`
       CREATE TABLE IF NOT EXISTS signatures (
@@ -365,7 +434,7 @@ async function initDb() {
       )
     `);
 
-    console.log("DB: Schema ready / migrations complete.");
+    console.log("DB: Schema ready / migrations complete. (better-sqlite3)");
   })();
 
   return _initPromise;

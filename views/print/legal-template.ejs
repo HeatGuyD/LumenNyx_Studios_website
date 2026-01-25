@@ -1,0 +1,57 @@
+<!-- FILE: views/print/legal-template.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title><%= template.title %> – Executed</title>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color:#111; }
+    h1 { font-size: 18px; margin: 0 0 6px 0; }
+    .meta { font-size: 11px; color:#333; margin-bottom: 10px; }
+    .box { border:1px solid #bbb; padding:10px; border-radius: 8px; }
+    .sig { margin-top: 14px; display:flex; gap:16px; align-items:flex-start; }
+    .sig img { max-height: 90px; border:1px solid #ccc; padding:6px; border-radius: 6px; background:#fff; }
+    .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; }
+    hr { border:0; border-top:1px solid #ddd; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <h1><%= template.title %></h1>
+  <div class="meta">
+    Template: <span class="mono"><%= template.slug %></span> •
+    Version: <span class="mono"><%= template.version %></span> •
+    Signed At (ISO): <span class="mono"><%= (payload && payload.consent && payload.consent.agreedAtIso) ? payload.consent.agreedAtIso : '' %></span>
+  </div>
+
+  <div class="box">
+    <%- template.body_html %>
+  </div>
+
+  <hr>
+
+  <div class="sig">
+    <div>
+      <div><strong>Signed By</strong></div>
+      <div class="mono">User ID: <%= payload && payload.signer ? payload.signer.userId : '' %></div>
+      <div class="mono">Username: <%= payload && payload.signer ? (payload.signer.username || '') : '' %></div>
+      <div class="mono">IP: <%= audit ? audit.ip : '' %></div>
+      <div class="mono">UA: <%= audit ? audit.ua : '' %></div>
+    </div>
+
+    <div>
+      <div><strong>Signature</strong></div>
+      <% if (signature && signature.signature_data_url) { %>
+        <img src="<%= signature.signature_data_url %>" alt="Signature">
+      <% } else if (signature && signature.signature_png && String(signature.signature_png).startsWith('data:image')) { %>
+        <img src="<%= signature.signature_png %>" alt="Signature">
+      <% } else { %>
+        <div class="mono">[Signature image unavailable]</div>
+      <% } %>
+
+      <div class="mono" style="margin-top:6px;">
+        Signature ID: <%= signature ? (signature.id || '') : '' %>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

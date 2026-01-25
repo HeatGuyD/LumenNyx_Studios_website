@@ -1,0 +1,73 @@
+<!-- FILE: views/admin/legal-executed.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Signed Legal Documents – LumenNyx Studios</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="home">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/studio-panel" class="brand-link">
+        <span class="brand-mark"><img src="/img/lumennyx-mark.png" alt="LumenNyx"></span>
+        <span class="brand-text">LUMENNYX STUDIOS</span>
+      </a>
+      <nav class="main-nav">
+        <a href="/studio-panel">Studio Panel</a>
+        <a href="/studio-panel/legal-templates">Legal Templates</a>
+        <a href="/studio-panel/legal-executed" class="active">Signed Legal</a>
+        <a href="/studio-panel/executed">Executed (All)</a>
+        <form action="/logout" method="POST" style="display:inline;">
+          <button type="submit" class="btn secondary" style="padding:0.3rem 0.9rem;font-size:0.75rem;">Logout</button>
+        </form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-wrapper">
+    <section class="portal-section">
+      <h2>Signed Legal Documents</h2>
+      <p class="portal-note">
+        These are executed PDFs generated from the template library (DocuSign-ish flow).
+      </p>
+
+      <% if (message) { %><div class="alert success"><%= message %></div><% } %>
+      <% if (error) { %><div class="alert error"><%= error %></div><% } %>
+
+      <div class="documents-list">
+        <table>
+          <thead>
+            <tr>
+              <th>Signed At</th>
+              <th>User</th>
+              <th>Template</th>
+              <th>Version</th>
+              <th>Hash</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% (rows || []).forEach((r) => { %>
+              <tr>
+                <td class="muted"><%= r.signed_at %></td>
+                <td><strong><%= r.username || ('User #' + r.user_id) %></strong></td>
+                <td><%= r.template_title || r.doc_type %></td>
+                <td class="mono"><%= r.template_version || '' %></td>
+                <td class="mono"><%= (r.document_hash || '').slice(0, 16) %>…</td>
+                <td style="white-space:nowrap;">
+                  <a class="btn secondary" href="/studio-panel/executed/<%= r.id %>/pdf" target="_blank" rel="noopener">View PDF</a>
+                </td>
+              </tr>
+            <% }) %>
+            <% if (!rows || !rows.length) { %>
+              <tr><td colspan="6" class="muted">No signed legal documents yet.</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

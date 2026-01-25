@@ -1,0 +1,91 @@
+<!-- FILE: views/admin/legal-template-edit.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title><%= template ? 'Edit' : 'New' %> Legal Template – LumenNyx Studios</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    textarea { width: 100%; min-height: 360px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; }
+    .row > label { flex: 1; min-width: 220px; }
+  </style>
+</head>
+<body class="home">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/studio-panel" class="brand-link">
+        <span class="brand-mark"><img src="/img/lumennyx-mark.png" alt="LumenNyx"></span>
+        <span class="brand-text">LUMENNYX STUDIOS</span>
+      </a>
+      <nav class="main-nav">
+        <a href="/studio-panel">Studio Panel</a>
+        <a href="/studio-panel/legal-templates" class="active">Legal Templates</a>
+        <a href="/studio-panel/legal-executed">Signed Legal</a>
+        <form action="/logout" method="POST" style="display:inline;">
+          <button type="submit" class="btn secondary" style="padding:0.3rem 0.9rem;font-size:0.75rem;">Logout</button>
+        </form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-wrapper">
+    <section class="portal-section">
+      <h2><%= template ? 'Edit' : 'New' %> Legal Template</h2>
+      <p class="portal-note">
+        HTML body is rendered into a “print view” and converted to a signed PDF after the model agrees and submits.
+      </p>
+
+      <% if (message) { %><div class="alert success"><%= message %></div><% } %>
+      <% if (error) { %><div class="alert error"><%= error %></div><% } %>
+
+      <form method="POST" action="<%= template ? ('/studio-panel/legal-templates/' + template.id) : '/studio-panel/legal-templates/new' %>">
+        <div class="row">
+          <label>
+            Title
+            <input type="text" name="title" value="<%= template ? template.title : '' %>" required>
+          </label>
+          <label>
+            Slug (URL id)
+            <input type="text" name="slug" value="<%= template ? template.slug : '' %>" placeholder="master-release" required>
+          </label>
+          <label>
+            Version
+            <input type="text" name="version" value="<%= template ? template.version : 'v1' %>" required>
+          </label>
+        </div>
+
+        <div class="row" style="margin-top:10px;">
+          <label style="display:flex; gap:10px; align-items:center;">
+            <input type="checkbox" name="required" <%= (!template || Number(template.required) === 1) ? 'checked' : '' %> >
+            <span>Required</span>
+          </label>
+
+          <label style="display:flex; gap:10px; align-items:center;">
+            <input type="checkbox" name="active" <%= (!template || Number(template.active) === 1) ? 'checked' : '' %> >
+            <span>Active</span>
+          </label>
+        </div>
+
+        <label style="display:block; margin-top:12px;">
+          Body HTML
+          <textarea name="body_html" required><%= template ? template.body_html : '' %></textarea>
+          <div class="field-help">
+            Tip: Use simple HTML (headings, paragraphs, lists). This is internal portal-only content.
+            When you change version, models who already signed will be flagged as “needs re-sign”.
+          </div>
+        </label>
+
+        <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+          <button type="submit" class="btn primary">Save Template</button>
+          <a class="btn secondary" href="/studio-panel/legal-templates">Back</a>
+          <% if (template) { %>
+            <a class="btn secondary" href="/model/legal/<%= template.slug %>" target="_blank" rel="noopener">Preview as Model</a>
+          <% } %>
+        </div>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

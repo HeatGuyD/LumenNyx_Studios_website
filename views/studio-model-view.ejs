@@ -38,6 +38,13 @@
         Internal-only view. Review identity, compliance documents, releases, and consent/safety policies.
       </p>
 
+      <% if (error) { %>
+        <div class="alert error"><%= error %></div>
+      <% } %>
+      <% if (message) { %>
+        <div class="alert success"><%= message %></div>
+      <% } %>
+
       <%
         const hasRelease = !!masterRelease;
         const hasConsent = !!policies;
@@ -52,6 +59,24 @@
 
         // Signature preview (if stored on master release)
         const sigFile = masterRelease?.signature_png ? `/uploads/signatures/${masterRelease.signature_png}` : null;
+
+        // Doc requests
+        const docRequestsSafe = Array.isArray(docRequests) ? docRequests : [];
+
+        function fmtDocType(t) {
+          const v = String(t || '').toLowerCase();
+          if (v === 'privacy') return 'Privacy & Confidentiality';
+          if (v === 'payment') return 'Payment Confirmation';
+          if (v === 'aftercare') return 'Aftercare / Post-Shoot';
+          return v || 'Unknown';
+        }
+
+        function pillClassByStatus(s) {
+          const v = String(s || '').toLowerCase();
+          if (v === 'completed') return 'ok';
+          if (v === 'pending') return 'pending';
+          return 'missing';
+        }
       %>
 
       <!-- Account Approval Controls -->
@@ -99,6 +124,91 @@
         <div class="status-pill <%= (photos && photos.length) ? 'ok' : 'pending' %>">
           <span class="label">Photos:</span>
           <span><%= (photos && photos.length) ? `${photos.length} photo(s)` : 'None' %></span>
+        </div>
+      </div>
+
+      <!-- NEW: Document Requests -->
+      <div class="panel-inner" style="margin-top: 18px;">
+        <h3>Document Requests</h3>
+        <p class="field-help">
+          Use this to require the model to complete specific portal documents. Pending requests are shown here.
+        </p>
+
+        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+          <form action="/studio-panel/models/<%= user.id %>/doc-requests" method="POST" style="min-width:260px;">
+            <label style="display:block; font-size:0.85rem; color:#b5b5cf; margin-bottom:6px;">
+              Request Type
+            </label>
+            <select class="input" name="doc_type" style="width:100%; padding:0.55rem 0.65rem;">
+              <option value="privacy">Privacy &amp; Confidentiality</option>
+              <option value="payment">Payment Confirmation</option>
+              <option value="aftercare">Aftercare / Post-Shoot</option>
+            </select>
+
+            <label style="display:block; font-size:0.85rem; color:#b5b5cf; margin:10px 0 6px;">
+              Note (optional)
+            </label>
+            <input class="input" type="text" name="note" placeholder="Optional note for internal tracking"
+                   style="width:100%; padding:0.55rem 0.65rem;" />
+
+            <button type="submit" class="btn primary" style="margin-top:10px; width:100%;">
+              Create Request
+            </button>
+          </form>
+
+          <div style="flex:1; min-width:320px;">
+            <% if (!docRequestsSafe.length) { %>
+              <div class="empty-state">No document requests on file.</div>
+            <% } else { %>
+              <div class="documents-list">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Document</th>
+                      <th>Status</th>
+                      <th>Requested</th>
+                      <th>Completed</th>
+                      <th>Note</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% docRequestsSafe.forEach(function(r) { %>
+                      <tr>
+                        <td><strong><%= fmtDocType(r.doc_type) %></strong></td>
+                        <td>
+                          <span class="status-pill <%= pillClassByStatus(r.status) %>">
+                            <span class="label">Status:</span>
+                            <span><%= r.status || '—' %></span>
+                          </span>
+                        </td>
+                        <td><%= r.requested_at || '—' %></td>
+                        <td><%= r.completed_at || '—' %></td>
+                        <td style="max-width:260px; white-space:pre-wrap;"><%= r.note || '—' %></td>
+                        <td>
+                          <% if ((r.status || '').toLowerCase() === 'pending') { %>
+                            <form action="/studio-panel/doc-requests/<%= r.id %>/void" method="POST" style="display:inline;">
+                              <input type="hidden" name="user_id" value="<%= user.id %>">
+                              <button type="submit" class="btn secondary" style="font-size:0.75rem;padding:0.2rem 0.7rem;">
+                                Void
+                              </button>
+                            </form>
+                          <% } else { %>
+                            <span class="field-help">—</span>
+                          <% } %>
+                        </td>
+                      </tr>
+                    <% }); %>
+                  </tbody>
+                </table>
+              </div>
+            <% } %>
+          </div>
+        </div>
+
+        <div style="margin-top:10px; font-size:0.8rem; color:#9aa0b5;">
+          Note: The model-side portal must read <code>document_requests</code> and enforce/announce pending requirements.
+          This admin view just manages the request records.
         </div>
       </div>
 
@@ -178,7 +288,7 @@
             <% } %>
           </div>
 
-          <!-- Email PDFs (matches backend behavior: always includes model email(s) if on file + MAIL_TO_STUDIO; optional extra "to") -->
+          <!-- Email PDFs -->
           <div class="panel-inner" style="margin-top: 14px;">
             <h4 style="margin:0 0 8px;">Email PDFs</h4>
 
