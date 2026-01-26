@@ -137,6 +137,7 @@ function uniqEmails(arr) {
 }
 
 module.exports = function docRoutes(ctx) {
+  console.log('✅ docRoutes loaded');
   const router = express.Router();
   const { dbRun, dbGet, dbAll, ensureColumn } = ctx.db;
   const audit = ctx.audit;
