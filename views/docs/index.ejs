@@ -4,23 +4,143 @@
   <meta charset="utf-8" />
   <title>Documents</title>
   <style>
-    body{font-family:Arial, sans-serif; margin:24px; color:#111}
-    .card{max-width:900px; margin:0 auto; padding:22px; border:1px solid #ddd; border-radius:12px}
-    a{display:block; margin:10px 0; color:#0b57d0; text-decoration:none; font-weight:600}
+    body{font-family:Arial, sans-serif; margin:24px; color:#111; background:#fff}
+    .card{max-width:980px; margin:0 auto; padding:22px; border:1px solid #ddd; border-radius:12px}
+    h1{margin:0 0 8px}
+    h2{margin:22px 0 10px; font-size:18px}
+    .muted{color:#555; font-size:14px; line-height:1.35}
+    .grid{display:grid; grid-template-columns:1fr; gap:10px; margin-top:14px}
+    .row{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:12px; padding:12px 14px; border:1px solid #e5e5e5; border-radius:10px;
+      background:#fafafa;
+    }
+    .left{min-width:0}
+    .titleline{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+    a{color:#0b57d0; text-decoration:none; font-weight:700}
     a:hover{text-decoration:underline}
-    .muted{color:#555; font-size:14px}
+    .sub{margin-top:4px; color:#666; font-size:12px}
+    .pill{
+      display:inline-block; padding:4px 9px; border-radius:999px;
+      font-size:12px; font-weight:700; border:1px solid #ddd; background:#fff; color:#333;
+    }
+    .pill.req{border-color:#d7b500; background:#fff7cc}
+    .pill.signed{border-color:#2e7d32; background:#e7f6ea; color:#1b5e20}
+    .pill.missing{border-color:#b71c1c; background:#fde7e9; color:#8b0000}
+    .pill.resign{border-color:#8e24aa; background:#f3e5f5; color:#4a148c}
+    .right{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+    .btn{
+      display:inline-block; padding:8px 12px; border-radius:10px;
+      border:1px solid #cfd8dc; background:#fff; font-weight:800; color:#111; text-decoration:none;
+    }
+    .btn:hover{background:#f4f6f8}
+    .alert{
+      margin-top:14px; padding:12px 14px; border-radius:10px; border:1px solid #f0c36d;
+      background:#fff8e1; color:#5d4037; font-size:13px;
+    }
+    .flash{margin-top:12px}
+    .flash .err{padding:10px 12px; border:1px solid #f3b4b4; background:#fdecec; border-radius:10px; color:#7f0000}
+    .flash .ok{padding:10px 12px; border:1px solid #b7e0c0; background:#e9f7ec; border-radius:10px; color:#1b5e20}
+    .split{margin-top:22px; border-top:1px solid #eee; padding-top:18px}
+    .smallnote{color:#666; font-size:12px; margin-top:6px}
   </style>
 </head>
 <body>
   <div class="card">
     <h1>Documents</h1>
-    <div class="muted">Select a document to review and sign. An executed PDF will be generated and saved.</div>
-
-    <div style="margin-top:16px">
-      <a href="/docs/privacy">Privacy & Confidentiality</a>
-      <a href="/docs/payment">Payment Confirmation</a>
-      <a href="/docs/aftercare">Aftercare / Post-Shoot</a>
+    <div class="muted">
+      Review and sign required documents. Executed PDFs are generated and saved for records.
     </div>
+
+    <% if (typeof error !== 'undefined' && error) { %>
+      <div class="flash"><div class="err"><%= error %></div></div>
+    <% } %>
+    <% if (typeof message !== 'undefined' && message) { %>
+      <div class="flash"><div class="ok"><%= message %></div></div>
+    <% } %>
+
+    <!-- =========================
+         LEGAL TEMPLATE DOCUMENTS
+         ========================= -->
+    <h2>Legal Documents</h2>
+
+    <% const tpls = (templates || []); %>
+
+    <% if (!tpls.length) { %>
+      <div class="muted" style="margin-top:10px">
+        No legal templates are available right now.
+      </div>
+      <div class="smallnote">
+        If you expected documents here, confirm templates exist in <code>legal_templates</code> and are marked <code>active=1</code>.
+      </div>
+    <% } else { %>
+
+      <% if ((requiredMissing || 0) > 0 || (requiredNeedsResign || 0) > 0) { %>
+        <div class="alert">
+          <% if ((requiredMissing || 0) > 0) { %>
+            <strong><%= requiredMissing %></strong> required document(s) missing.
+          <% } %>
+          <% if ((requiredNeedsResign || 0) > 0) { %>
+            <% if ((requiredMissing || 0) > 0) { %> &nbsp; <% } %>
+            <strong><%= requiredNeedsResign %></strong> required document(s) need re-sign (updated version).
+          <% } %>
+        </div>
+      <% } %>
+
+      <div class="grid">
+        <% tpls.forEach(t => { %>
+          <% const signed = !!t.signed; %>
+          <% const needsResign = !!t.needs_resign; %>
+
+          <div class="row">
+            <div class="left">
+              <div class="titleline">
+                <a href="/model/legal/<%= t.slug %>"><%= t.title %></a>
+
+                <% if (t.required) { %>
+                  <span class="pill req">Required</span>
+                <% } %>
+
+                <% if (signed && !needsResign) { %>
+                  <span class="pill signed">Signed</span>
+                <% } else if (signed && needsResign) { %>
+                  <span class="pill resign">Needs Re-sign</span>
+                <% } else { %>
+                  <span class="pill missing">Missing</span>
+                <% } %>
+              </div>
+
+              <div class="sub">
+                Version: <strong><%= t.version %></strong>
+                <% if (t.updated_at) { %> • Updated: <%= t.updated_at %><% } %>
+                <% if (t.signed_at) { %> • Last signed: <%= t.signed_at %><% } %>
+              </div>
+            </div>
+
+            <div class="right">
+              <a class="btn" href="/model/legal/<%= t.slug %>">
+                <% if (signed && needsResign) { %>Re-sign<% } else if (!signed) { %>Review & Sign<% } else { %>View<% } %>
+              </a>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+
+    <!-- =========================
+         LEGACY DOCUMENTS
+         ========================= -->
+    <div class="split">
+      <h2>Other Acknowledgments</h2>
+      <div class="muted">Optional / legacy documents.</div>
+
+      <div style="margin-top:12px">
+        <a href="/docs/privacy">Privacy &amp; Confidentiality</a>
+        <a href="/docs/payment">Payment Confirmation</a>
+        <a href="/docs/aftercare">Aftercare / Post-Shoot</a>
+      </div>
+    </div>
+
   </div>
 </body>
 </html>
