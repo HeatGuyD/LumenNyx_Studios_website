@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { sendMailOrLog } = require('../lib/mailer');
+const attachLegalDocRoutes = require('./doc_legal');
 
 let puppeteer = null;
 try {
@@ -145,6 +146,30 @@ module.exports = function docRoutes(ctx) {
   // Storage
   const executedPdfDir = ctx.uploadDirs.docUploadsDir;
 
+  // ============================================================
+  // Attach extracted legal-doc routes (doc_legal.js)
+  // IMPORTANT: this must be top-level, NOT inside a route.
+  // ============================================================
+  try {
+    // make res available to doc_legal for server-side rendering callbacks (if needed)
+    router.use((req, res, next) => {
+      ctx._res = res;
+      next();
+    });
+
+    attachLegalDocRoutes(router, {
+      ...ctx,
+      ensureLoggedIn,
+      ensureAdmin,
+      renderPdfFromHtml,
+      _res: null,
+    });
+
+    console.log('✅ doc_legal routes attached');
+  } catch (e) {
+    console.error('❌ Failed to attach doc_legal routes:', e);
+  }
+
   // -----------------------
   // SCHEMA
   // -----------------------
@@ -174,7 +199,8 @@ module.exports = function docRoutes(ctx) {
     await ensureColumn('executed_documents', `template_title TEXT`);
     await ensureColumn('executed_documents', `template_version TEXT`);
 
-    // Template library
+    // Template library (kept here because other parts may rely on it;
+    // legal routes that manage it now live in doc_legal.js)
     await dbRun(`
       CREATE TABLE IF NOT EXISTS legal_templates (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -249,14 +275,76 @@ module.exports = function docRoutes(ctx) {
   }
 
   // ============================================================
-  // LEGACY DOC FLOW (keep)
-  // /docs, /docs/:docType
+  // DOCS HUB (legacy + uploaded/template docs)
+  // /docs
   // ============================================================
   router.get('/docs', ensureLoggedIn, async (req, res) => {
-    const flash = consumeFlash(req);
-    return res.render('docs/index', { studioEmails: ctx.STUDIO_EMAILS, ...flash });
+    try {
+      const flash = consumeFlash(req);
+      const userId = req.session.user.id;
+
+      // Active uploaded/template docs
+      const templates = await dbAll(
+        `SELECT id, slug, title, version, required, active, updated_at
+         FROM legal_templates
+         WHERE active=1
+         ORDER BY required DESC, id ASC`
+      );
+
+      // Latest executed per template for this user
+      const execRows = await dbAll(
+        `SELECT template_id, template_version, signed_at
+         FROM executed_documents
+         WHERE user_id=? AND doc_kind='legal'
+         ORDER BY signed_at DESC`,
+        [userId]
+      );
+
+      const latestByTemplateId = new Map();
+      (execRows || []).forEach((r) => {
+        if (!latestByTemplateId.has(r.template_id)) latestByTemplateId.set(r.template_id, r);
+      });
+
+      const items = (templates || []).map((t) => {
+        const exec = latestByTemplateId.get(t.id) || null;
+        const signed = !!exec;
+        const needsResign = signed && String(exec.template_version || '') !== String(t.version || '');
+        return {
+          ...t,
+          signed,
+          signed_at: exec ? exec.signed_at : null,
+          needs_resign: needsResign,
+        };
+      });
+
+      const requiredMissing = items.filter((x) => x.required === 1 && !x.signed).length;
+      const requiredNeedsResign = items.filter((x) => x.required === 1 && x.needs_resign).length;
+
+      return res.render('docs/index', {
+        studioEmails: ctx.STUDIO_EMAILS,
+        templates: items,
+        requiredMissing,
+        requiredNeedsResign,
+        ...flash,
+      });
+    } catch (e) {
+      console.error('Docs index error:', e);
+      const flash = consumeFlash(req);
+      return res.render('docs/index', {
+        studioEmails: ctx.STUDIO_EMAILS,
+        templates: [],
+        requiredMissing: 0,
+        requiredNeedsResign: 0,
+        error: (flash && flash.error) || 'Could not load documents.',
+        message: (flash && flash.message) || null,
+      });
+    }
   });
 
+  // ============================================================
+  // LEGACY DOC FLOW (keep)
+  // /docs/:docType
+  // ============================================================
   router.get('/docs/:docType', ensureLoggedIn, async (req, res) => {
     try {
       const docType = requireLegacyDocType(String(req.params.docType || '').trim());
@@ -408,422 +496,6 @@ module.exports = function docRoutes(ctx) {
       console.error('Doc submit error:', e);
       req.session.error = e.message || 'Could not save document.';
       return res.redirect('/docs');
-    }
-  });
-
-  // ============================================================
-  // NEW: LEGAL TEMPLATE LIBRARY (ADMIN)
-  // /studio-panel/legal-templates
-  // ============================================================
-  router.get('/studio-panel/legal-templates', ensureAdmin, async (req, res) => {
-    try {
-      const flash = consumeFlash(req);
-      const rows = await dbAll(
-        `SELECT id, slug, title, version, required, active, created_at, updated_at
-         FROM legal_templates
-         ORDER BY active DESC, required DESC, id DESC`
-      );
-
-      return res.render('admin/legal-templates', {
-        staff: req.session.user,
-        templates: rows || [],
-        ...flash,
-      });
-    } catch (e) {
-      console.error('Legal templates list error:', e);
-      return res.status(500).render('error', { message: 'Could not load legal templates.' });
-    }
-  });
-
-  router.get('/studio-panel/legal-templates/new', ensureAdmin, async (req, res) => {
-    const flash = consumeFlash(req);
-    return res.render('admin/legal-template-edit', {
-      staff: req.session.user,
-      template: null,
-      ...flash,
-    });
-  });
-
-  router.post('/studio-panel/legal-templates/new', ensureAdmin, async (req, res) => {
-    try {
-      const title = sanitizeTitle(req.body.title);
-      const slug = sanitizeSlug(req.body.slug || title);
-      const version = String(req.body.version || 'v1').trim().slice(0, 20) || 'v1';
-      const required = toBool(req.body.required) ? 1 : 0;
-      const active = toBool(req.body.active) ? 1 : 0;
-      const bodyHtml = String(req.body.body_html || '').trim();
-
-      if (!title) {
-        req.session.error = 'Title is required.';
-        return res.redirect('/studio-panel/legal-templates/new');
-      }
-      if (!slug) {
-        req.session.error = 'Slug is required.';
-        return res.redirect('/studio-panel/legal-templates/new');
-      }
-      if (!bodyHtml || bodyHtml.length < 40) {
-        req.session.error = 'Body HTML is required (at least ~40 chars).';
-        return res.redirect('/studio-panel/legal-templates/new');
-      }
-
-      await dbRun(
-        `INSERT INTO legal_templates (slug, title, body_html, version, required, active, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
-        [slug, title, bodyHtml, version, required, active]
-      );
-
-      try {
-        await audit.log(req, {
-          action: 'legal_template_created',
-          entityType: 'legal_template',
-          entityId: null,
-          details: { slug, title, version, required, active },
-        });
-      } catch (_) {}
-
-      req.session.message = 'Legal template created.';
-      return res.redirect('/studio-panel/legal-templates');
-    } catch (e) {
-      console.error('Legal template create error:', e);
-      req.session.error = e.message || 'Could not create template.';
-      return res.redirect('/studio-panel/legal-templates/new');
-    }
-  });
-
-  router.get('/studio-panel/legal-templates/:id', ensureAdmin, async (req, res) => {
-    try {
-      const flash = consumeFlash(req);
-      const id = parseInt(req.params.id, 10);
-      if (!id) return res.status(400).render('error', { message: 'Invalid id.' });
-
-      const row = await dbGet(`SELECT * FROM legal_templates WHERE id=? LIMIT 1`, [id]);
-      if (!row) return res.status(404).render('error', { message: 'Template not found.' });
-
-      return res.render('admin/legal-template-edit', {
-        staff: req.session.user,
-        template: row,
-        ...flash,
-      });
-    } catch (e) {
-      console.error('Legal template edit view error:', e);
-      return res.status(500).render('error', { message: 'Could not load template.' });
-    }
-  });
-
-  router.post('/studio-panel/legal-templates/:id', ensureAdmin, async (req, res) => {
-    try {
-      const id = parseInt(req.params.id, 10);
-      if (!id) {
-        req.session.error = 'Invalid id.';
-        return res.redirect('/studio-panel/legal-templates');
-      }
-
-      const title = sanitizeTitle(req.body.title);
-      const slug = sanitizeSlug(req.body.slug || title);
-      const version = String(req.body.version || 'v1').trim().slice(0, 20) || 'v1';
-      const required = toBool(req.body.required) ? 1 : 0;
-      const active = toBool(req.body.active) ? 1 : 0;
-      const bodyHtml = String(req.body.body_html || '').trim();
-
-      if (!title) {
-        req.session.error = 'Title is required.';
-        return res.redirect(`/studio-panel/legal-templates/${id}`);
-      }
-      if (!slug) {
-        req.session.error = 'Slug is required.';
-        return res.redirect(`/studio-panel/legal-templates/${id}`);
-      }
-      if (!bodyHtml || bodyHtml.length < 40) {
-        req.session.error = 'Body HTML is required (at least ~40 chars).';
-        return res.redirect(`/studio-panel/legal-templates/${id}`);
-      }
-
-      await dbRun(
-        `UPDATE legal_templates
-         SET slug=?, title=?, body_html=?, version=?, required=?, active=?, updated_at=datetime('now')
-         WHERE id=?`,
-        [slug, title, bodyHtml, version, required, active, id]
-      );
-
-      try {
-        await audit.log(req, {
-          action: 'legal_template_updated',
-          entityType: 'legal_template',
-          entityId: id,
-          details: { slug, title, version, required, active },
-        });
-      } catch (_) {}
-
-      req.session.message = 'Legal template saved.';
-      return res.redirect('/studio-panel/legal-templates');
-    } catch (e) {
-      console.error('Legal template update error:', e);
-      req.session.error = e.message || 'Could not update template.';
-      return res.redirect(`/studio-panel/legal-templates/${req.params.id}`);
-    }
-  });
-
-  // ============================================================
-  // NEW: MODEL LEGAL SIGNING FLOW
-  // /model/legal
-  // ============================================================
-  router.get('/model/legal', ensureLoggedIn, async (req, res) => {
-    try {
-      if (req.session?.user?.role !== 'model') {
-        return res.status(403).render('error', { message: 'Access denied.' });
-      }
-
-      const userId = req.session.user.id;
-      const flash = consumeFlash(req);
-
-      const templates = await dbAll(
-        `SELECT id, slug, title, version, required, active, updated_at
-         FROM legal_templates
-         WHERE active=1
-         ORDER BY required DESC, id ASC`
-      );
-
-      const execRows = await dbAll(
-        `SELECT template_id, template_version, signed_at, executed_pdf_filename
-         FROM executed_documents
-         WHERE user_id=? AND doc_kind='legal'
-         ORDER BY signed_at DESC`,
-        [userId]
-      );
-
-      const latestByTemplateId = new Map();
-      (execRows || []).forEach((r) => {
-        if (!latestByTemplateId.has(r.template_id)) latestByTemplateId.set(r.template_id, r);
-      });
-
-      const items = (templates || []).map((t) => {
-        const exec = latestByTemplateId.get(t.id) || null;
-        const signed = !!exec;
-        const needsResign = signed && String(exec.template_version || '') !== String(t.version || '');
-        return {
-          ...t,
-          signed,
-          signed_at: exec ? exec.signed_at : null,
-          needs_resign: needsResign,
-        };
-      });
-
-      const requiredMissing = items.filter((x) => x.required === 1 && !x.signed).length;
-      const requiredNeedsResign = items.filter((x) => x.required === 1 && x.needs_resign).length;
-
-      return res.render('model-legal-index', {
-        currentUser: req.session.user,
-        templates: items,
-        requiredMissing,
-        requiredNeedsResign,
-        ...flash,
-      });
-    } catch (e) {
-      console.error('Model legal index error:', e);
-      return res.status(500).render('error', { message: 'Could not load legal documents.' });
-    }
-  });
-
-  router.get('/model/legal/:slug', ensureLoggedIn, async (req, res) => {
-    try {
-      if (req.session?.user?.role !== 'model') {
-        return res.status(403).render('error', { message: 'Access denied.' });
-      }
-
-      const userId = req.session.user.id;
-      const slug = sanitizeSlug(req.params.slug);
-      if (!slug) return res.status(400).render('error', { message: 'Invalid document.' });
-
-      const flash = consumeFlash(req);
-
-      const tpl = await dbGet(
-        `SELECT id, slug, title, body_html, version, required, active, updated_at
-         FROM legal_templates
-         WHERE slug=? AND active=1
-         LIMIT 1`,
-        [slug]
-      );
-      if (!tpl) return res.status(404).render('error', { message: 'Document not found.' });
-
-      const sig = await getLatestSignature(userId);
-
-      const existing = await dbGet(
-        `SELECT id, template_version, signed_at
-         FROM executed_documents
-         WHERE user_id=? AND doc_kind='legal' AND template_id=?
-         ORDER BY signed_at DESC
-         LIMIT 1`,
-        [userId, tpl.id]
-      );
-
-      const needsResign = existing && String(existing.template_version || '') !== String(tpl.version || '');
-
-      return res.render('model-legal-sign', {
-        currentUser: req.session.user,
-        template: tpl,
-        signature: sig || null,
-        alreadySigned: !!existing && !needsResign,
-        needsResign: !!needsResign,
-        ...flash,
-      });
-    } catch (e) {
-      console.error('Model legal sign view error:', e);
-      return res.status(500).render('error', { message: 'Could not load document.' });
-    }
-  });
-
-  router.post('/model/legal/:slug', ensureLoggedIn, async (req, res) => {
-    try {
-      if (req.session?.user?.role !== 'model') {
-        return res.status(403).render('error', { message: 'Access denied.' });
-      }
-
-      const userId = req.session.user.id;
-      const slug = sanitizeSlug(req.params.slug);
-      if (!slug) {
-        req.session.error = 'Invalid document.';
-        return res.redirect('/model/legal');
-      }
-
-      const tpl = await dbGet(
-        `SELECT id, slug, title, body_html, version, required, active, updated_at
-         FROM legal_templates
-         WHERE slug=? AND active=1
-         LIMIT 1`,
-        [slug]
-      );
-      if (!tpl) {
-        req.session.error = 'Document not found.';
-        return res.redirect('/model/legal');
-      }
-
-      const sig = await getLatestSignature(userId);
-      if (!sig) {
-        req.session.error = 'Please complete your signature first (Signature Setup).';
-        return res.redirect(`/model/legal/${slug}`);
-      }
-
-      const agree = req.body.agree === 'on';
-      if (!agree) {
-        req.session.error = 'You must check “I agree” to sign this document.';
-        return res.redirect(`/model/legal/${slug}`);
-      }
-
-      const ip = getClientIp(req);
-      const ua = req.headers['user-agent'] || '';
-
-      const payload = {
-        kind: 'legal_template',
-        template: {
-          id: tpl.id,
-          slug: tpl.slug,
-          title: tpl.title,
-          version: tpl.version,
-          updated_at: tpl.updated_at,
-        },
-        signer: {
-          userId,
-          username: req.session.user.username || null,
-        },
-        consent: {
-          agreed: true,
-          agreedAtIso: new Date().toISOString(),
-        },
-        audit: {
-          ip,
-          ua,
-        },
-      };
-
-      let signatureDataUrl = null;
-      try {
-        const sp = String(sig.signature_png || '');
-        if (sp.startsWith('data:image')) {
-          signatureDataUrl = sp;
-        } else {
-          const sigPath = path.join(ctx.uploadDirs.signatureUploadsDir, path.basename(sig.signature_png));
-          const buf = fs.readFileSync(sigPath);
-          signatureDataUrl = `data:image/png;base64,${buf.toString('base64')}`;
-        }
-      } catch (_e) {
-        signatureDataUrl = null;
-      }
-
-      const html = await new Promise((resolve, reject) => {
-        res.render(
-          'print/legal-template',
-          {
-            template: tpl,
-            payload,
-            signature: { ...sig, signature_data_url: signatureDataUrl },
-            studioEmails: ctx.STUDIO_EMAILS,
-            audit: { ip, ua, signedAtIso: payload.consent.agreedAtIso },
-          },
-          (err, out) => (err ? reject(err) : resolve(out))
-        );
-      });
-
-      const pdf = await renderPdfFromHtml({ html });
-
-      const filename = `executed_legal_${tpl.slug}_${userId}_${Date.now()}_${Math.random().toString(36).slice(2)}.pdf`;
-      fs.writeFileSync(path.join(executedPdfDir, filename), pdf);
-
-      const hash = await insertExecutedDoc({
-        userId,
-        docType: tpl.slug,
-        docKind: 'legal',
-        payload,
-        signatureId: sig.id,
-        ip,
-        ua,
-        executedPdfFilename: filename,
-        templateId: tpl.id,
-        templateSlug: tpl.slug,
-        templateTitle: tpl.title,
-        templateVersion: tpl.version,
-      });
-
-      try {
-        await audit.log(req, {
-          action: 'legal_doc_signed',
-          entityType: 'legal_template',
-          entityId: tpl.id,
-          details: { slug: tpl.slug, version: tpl.version, executedPdf: filename, hash },
-        });
-      } catch (_) {}
-
-      req.session.message = 'Signed. Your executed PDF has been generated.';
-      return res.redirect('/model/legal');
-    } catch (e) {
-      console.error('Model legal submit error:', e);
-      req.session.error = e.message || 'Could not sign document.';
-      return res.redirect('/model/legal');
-    }
-  });
-
-  // ============================================================
-  // ADMIN: LIST “LEGAL” EXECUTED DOCS
-  // /studio-panel/legal-executed
-  // ============================================================
-  router.get('/studio-panel/legal-executed', ensureAdmin, async (req, res) => {
-    try {
-      const flash = consumeFlash(req);
-      const rows = await dbAll(
-        `SELECT ed.*, u.username
-         FROM executed_documents ed
-         LEFT JOIN users u ON u.id = ed.user_id
-         WHERE ed.doc_kind='legal'
-         ORDER BY ed.signed_at DESC
-         LIMIT 250`
-      );
-      return res.render('admin/legal-executed', {
-        staff: req.session.user,
-        rows: rows || [],
-        ...flash,
-      });
-    } catch (e) {
-      console.error('Legal executed list error:', e);
-      return res.status(500).render('error', { message: 'Could not load signed legal documents.' });
     }
   });
 
@@ -1034,12 +706,7 @@ module.exports = function docRoutes(ctx) {
       (ctx.STUDIO_EMAILS && ctx.STUDIO_EMAILS.admin) ||
       '';
 
-    const recipients = uniqEmails([
-      user.email,
-      profile?.email,
-      MAIL_TO_STUDIO,
-      extraTo,
-    ]);
+    const recipients = uniqEmails([user.email, profile?.email, MAIL_TO_STUDIO, extraTo]);
 
     if (!recipients.length) throw new Error('No recipients found (model email + studio archive missing).');
 
