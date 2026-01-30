@@ -7,7 +7,6 @@
   <link rel="stylesheet" href="/css/style.css" />
 
   <style>
-    /* Print helpers */
     @media print {
       .no-print { display: none !important; }
       .print-block { break-inside: avoid; }
@@ -18,26 +17,20 @@
     .muted { color:#9aa0b5; font-size:0.92rem; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:0.9rem; word-break: break-word; }
 
-    /* ✅ FIX: overlay stealing clicks */
     .hero { position: relative; }
     .hero-logo-bg { pointer-events: none !important; }
     .hero-buttons { position: relative; z-index: 5; }
 
-    /* ✅ anchor scroll offset under sticky header */
-    #identity, #docs, #photos, #release, #safety { scroll-margin-top: 110px; }
+    #identity, #docs, #photos, #legal, #release, #safety { scroll-margin-top: 110px; }
 
-    /* Section spacing */
-    .section-spacer { height: 8px; }
     .portal-grid { display: grid; grid-template-columns: 1fr; gap: 18px; }
 
-    /* Make hero pills look/behave like tabs */
     .hero-buttons .btn { cursor: pointer; }
     .hero-buttons .btn.active-pill {
       filter: brightness(1.05);
       box-shadow: 0 0 0 2px rgba(255, 200, 60, 0.35);
     }
 
-    /* Small help blocks */
     .help-card {
       border: 1px solid rgba(255,255,255,0.08);
       border-radius: 14px;
@@ -45,7 +38,6 @@
       background: rgba(0,0,0,0.25);
     }
 
-    /* Inputs in case your CSS is missing styling */
     .form-grid label { display:block; }
     .form-grid input, .form-grid select, .form-grid textarea {
       width: 100%;
@@ -81,15 +73,46 @@
       font-size: 0.82rem;
       border: 1px solid rgba(255,255,255,0.12);
       background: rgba(0,0,0,0.28);
+      white-space: nowrap;
     }
     .pill.ok { border-color: rgba(0,255,150,0.25); }
     .pill.warn { border-color: rgba(255,200,60,0.25); }
     .pill.bad { border-color: rgba(255,80,80,0.25); }
+
+    /* Legal layout */
+    .legal-grid {
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .legal-item {
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 14px;
+      padding: 12px 14px;
+      background: rgba(0,0,0,0.22);
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 14px;
+    }
+    .legal-left { min-width: 0; }
+    .legal-title { font-weight: 800; margin: 0 0 4px 0; }
+    .legal-meta { margin: 0; line-height: 1.35; }
+    .legal-actions { display:flex; gap: 10px; flex-wrap:wrap; justify-content:flex-end; }
+
+    .legal-summary-row {
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
   </style>
 </head>
 
 <body>
-  <!-- HEADER -->
   <header class="site-header no-print">
     <div class="site-header-inner">
       <a href="/" class="brand-link">
@@ -104,6 +127,7 @@
         <a href="/model/bookings">My Bookings</a>
         <a href="/model/scenes">My Scenes</a>
         <a href="/model/signature">Signature</a>
+        <a href="/model/legal">Legal</a>
         <a href="/privacy">Privacy</a>
         <a href="/terms">Terms</a>
         <a href="/2257">2257</a>
@@ -116,31 +140,25 @@
 
   <main class="home" style="max-width: 1100px; margin: 1.5rem auto 2rem auto; padding: 0 1.25rem;">
 
-    <!-- HERO / INTRO -->
     <section class="hero no-print">
       <div class="hero-logo-bg"></div>
 
       <h2>Model Profile & Legal Portal</h2>
       <p>
         This private portal lets you manage identity details, compliance documents,
-        your general/master release, and consent/safety preferences for LumenNyx Studios
-        (independent production studio based in Wallkill, NY 12589).
-      </p>
-      <p class="hero-note">
-        This portal is for record-keeping and clarity only and is not individual legal advice.
-        Consult your own attorney if you have legal questions about your rights or contracts.
+        releases, and consent/safety preferences for LumenNyx Studios.
       </p>
 
       <div class="hero-buttons">
         <a href="#identity" class="btn primary" data-pill="#identity">Identity &amp; Contact</a>
         <a href="#docs" class="btn secondary" data-pill="#docs">Documents</a>
         <a href="#photos" class="btn secondary" data-pill="#photos">Photos</a>
+        <a href="#legal" class="btn secondary" data-pill="#legal">Legal Docs</a>
         <a href="#release" class="btn secondary" data-pill="#release">Master Release</a>
         <a href="#safety" class="btn secondary" data-pill="#safety">Safety &amp; Consent</a>
       </div>
     </section>
 
-    <!-- Flash -->
     <% if (message) { %>
       <div class="alert success no-print"><%= message %></div>
     <% } %>
@@ -148,7 +166,59 @@
       <div class="alert error no-print"><%= error %></div>
     <% } %>
 
-    <!-- Status Overview -->
+    <%
+      // Legal docs derived status
+      // legalTemplates: [{id, slug, title, version, required, active}]
+      // executedLegal: [{id, template_id, template_version, signed_at, executed_pdf_filename}]
+      const _legalTemplates = Array.isArray(legalTemplates) ? legalTemplates : [];
+      const _executedLegal = Array.isArray(executedLegal) ? executedLegal : [];
+
+      function findLatestExecForTemplate(tid) {
+        const rows = _executedLegal.filter(x => String(x.template_id) === String(tid));
+        if (!rows.length) return null;
+        rows.sort((a,b) => {
+          const da = Date.parse(a.signed_at || '') || 0;
+          const db = Date.parse(b.signed_at || '') || 0;
+          if (db !== da) return db - da;
+          return (b.id||0) - (a.id||0);
+        });
+        return rows[0];
+      }
+
+      let legalRequiredTotal = 0;
+      let legalSignedOk = 0;
+      let legalNeedsResign = 0;
+      let legalMissing = 0;
+
+      _legalTemplates.forEach(t => {
+        if (!t || Number(t.active) !== 1) return;
+        if (Number(t.required) !== 1) return;
+        legalRequiredTotal++;
+
+        const ex = findLatestExecForTemplate(t.id);
+        if (!ex) { legalMissing++; return; }
+
+        const exVer = String(ex.template_version || '');
+        const curVer = String(t.version || '');
+        if (exVer && curVer && exVer !== curVer) legalNeedsResign++;
+        else legalSignedOk++;
+      });
+
+      const legalStatusLabel =
+        legalRequiredTotal === 0
+          ? 'No required legal templates'
+          : (legalMissing === 0 && legalNeedsResign === 0)
+            ? 'Complete'
+            : (legalMissing > 0)
+              ? `Missing (${legalMissing})`
+              : `Needs re-sign (${legalNeedsResign})`;
+
+      const legalStatusClass =
+        (legalRequiredTotal === 0) ? 'warn'
+        : (legalMissing === 0 && legalNeedsResign === 0) ? 'ok'
+        : 'warn';
+    %>
+
     <section class="portal-section no-print">
       <h3>Profile Status Overview</h3>
       <p class="portal-note">Quick view of what is on file and what is still missing.</p>
@@ -162,6 +232,16 @@
         <div class="status-pill <%= (documents && documents.length) ? 'ok' : 'missing' %>">
           <span class="label">ID / Docs:</span>
           <span><%= (documents && documents.length) ? 'Uploaded' : 'None uploaded' %></span>
+        </div>
+
+        <div class="status-pill <%= (photos && photos.length) ? 'ok' : 'missing' %>">
+          <span class="label">Photos:</span>
+          <span><%= (photos && photos.length) ? 'Uploaded' : 'None uploaded' %></span>
+        </div>
+
+        <div class="status-pill <%= legalStatusClass === 'ok' ? 'ok' : 'pending' %>">
+          <span class="label">Legal Docs:</span>
+          <span><%= legalStatusLabel %></span>
         </div>
 
         <div class="status-pill <%= masterRelease ? 'ok' : 'pending' %>">
@@ -178,22 +258,16 @@
 
     <div class="portal-grid">
 
-      <!-- ========================================================= -->
       <!-- IDENTITY -->
-      <!-- ========================================================= -->
       <section id="identity" class="portal-section">
         <h3>Identity &amp; Contact</h3>
-        <p class="portal-note">
-          Enter legal identity details used for compliance records. These records are not public.
-        </p>
+        <p class="portal-note">Enter legal identity details used for compliance records. These records are not public.</p>
 
         <div class="help-card no-print">
           <div class="pill <%= (profile && profile.legal_name && profile.date_of_birth) ? 'ok' : 'warn' %>">
             <%= (profile && profile.legal_name && profile.date_of_birth) ? 'Identity: On file' : 'Identity: Needs completion' %>
           </div>
-          <p class="muted" style="margin:8px 0 0 0;">
-            Use your legal name and date of birth. Preferred/stage name can be added below.
-          </p>
+          <p class="muted" style="margin:8px 0 0 0;">Use your legal name and date of birth. Preferred/stage name can be added below.</p>
         </div>
 
         <form action="/model/profile" method="POST" class="form-grid" style="margin-top: 14px;">
@@ -236,25 +310,18 @@
         </form>
       </section>
 
-      <!-- ========================================================= -->
       <!-- DOCUMENTS -->
-      <!-- ========================================================= -->
       <section id="docs" class="portal-section">
         <h3>Documents</h3>
-        <p class="portal-note">
-          Upload required compliance documents (ID, W-9, etc.). Only authorized staff can access these files.
-        </p>
+        <p class="portal-note">Upload required compliance documents (ID, W-9, etc.). Only authorized staff can access these files.</p>
 
         <div class="help-card no-print">
           <div class="pill <%= (documents && documents.length) ? 'ok' : 'warn' %>">
             <%= (documents && documents.length) ? ('Documents: ' + documents.length + ' on file') : 'Documents: none uploaded yet' %>
           </div>
-          <p class="muted" style="margin:8px 0 0 0;">
-            If upload fails, we’ll check server-side route + permissions for <span class="mono">/uploads/docs</span>.
-          </p>
+          <p class="muted" style="margin:8px 0 0 0;">If upload fails, we’ll check server-side route + permissions.</p>
         </div>
 
-        <!-- Upload -->
         <form action="/model/documents/upload" method="POST" enctype="multipart/form-data" class="form-grid" style="margin-top: 14px;">
           <div class="two-col">
             <label>
@@ -281,7 +348,6 @@
           </div>
         </form>
 
-        <!-- List -->
         <div style="margin-top: 14px;">
           <h4 style="margin-bottom: 8px;">On File</h4>
           <% if (documents && documents.length) { %>
@@ -299,7 +365,7 @@
                   <tr>
                     <td><span class="pill ok"><%= d.doc_type || 'document' %></span></td>
                     <td class="mono"><%= d.filename || d.path || '' %></td>
-                    <td class="muted"><%= d.created_at || '' %></td>
+                    <td class="muted"><%= d.uploaded_at || d.created_at || '' %></td>
                     <td>
                       <% if (d.public_url) { %>
                         <a class="btn secondary" style="padding:0.25rem 0.7rem;font-size:0.8rem;" href="<%= d.public_url %>" target="_blank" rel="noopener">View</a>
@@ -317,22 +383,16 @@
         </div>
       </section>
 
-      <!-- ========================================================= -->
       <!-- PHOTOS -->
-      <!-- ========================================================= -->
       <section id="photos" class="portal-section">
         <h3>Photos</h3>
-        <p class="portal-note">
-          Upload a headshot and optional portfolio images for internal reference.
-        </p>
+        <p class="portal-note">Upload a headshot and optional portfolio images for internal reference.</p>
 
         <div class="help-card no-print">
           <div class="pill <%= (photos && photos.length) ? 'ok' : 'warn' %>">
             <%= (photos && photos.length) ? ('Photos: ' + photos.length + ' on file') : 'Photos: none uploaded yet' %>
           </div>
-          <p class="muted" style="margin:8px 0 0 0;">
-            Supported: JPG/PNG. If it fails, we’ll verify server route + uploads directory permissions.
-          </p>
+          <p class="muted" style="margin:8px 0 0 0;">Supported: JPG/PNG.</p>
         </div>
 
         <form action="/model/photos/upload" method="POST" enctype="multipart/form-data" class="form-grid" style="margin-top: 14px;">
@@ -355,7 +415,7 @@
 
           <div class="mini-actions">
             <button class="btn primary" type="submit">Upload Photo</button>
-            <a class="btn secondary no-print" href="#release" data-pill="#release">Next: Master Release</a>
+            <a class="btn secondary no-print" href="#legal" data-pill="#legal">Next: Legal Docs</a>
           </div>
         </form>
 
@@ -376,7 +436,7 @@
                   <tr>
                     <td><span class="pill ok"><%= p.photo_type || 'photo' %></span></td>
                     <td class="mono"><%= p.filename || p.path || '' %></td>
-                    <td class="muted"><%= p.created_at || '' %></td>
+                    <td class="muted"><%= p.uploaded_at || p.created_at || '' %></td>
                     <td>
                       <% if (p.public_url) { %>
                         <a class="btn secondary" style="padding:0.25rem 0.7rem;font-size:0.8rem;" href="<%= p.public_url %>" target="_blank" rel="noopener">View</a>
@@ -394,22 +454,114 @@
         </div>
       </section>
 
-      <!-- ========================================================= -->
+      <!-- LEGAL DOCS -->
+      <section id="legal" class="portal-section print-block">
+        <h3>Legal Documents</h3>
+        <p class="portal-note">Review and sign the studio’s legal agreements. Executed PDFs are saved for recordkeeping.</p>
+
+        <div class="help-card no-print">
+          <div class="pill <%= legalStatusClass %>">Legal Docs: <%= legalStatusLabel %></div>
+
+          <div class="legal-summary-row">
+            <div class="muted">
+              Required total: <span class="mono"><%= legalRequiredTotal %></span> ·
+              Signed: <span class="mono"><%= legalSignedOk %></span> ·
+              Missing: <span class="mono"><%= legalMissing %></span> ·
+              Re-sign: <span class="mono"><%= legalNeedsResign %></span>
+            </div>
+            <div class="mini-actions" style="margin-top:0;">
+              <a class="btn secondary" href="/model/legal">Open Legal Checklist</a>
+              <a class="btn secondary" href="/model/signature">Signature Setup</a>
+            </div>
+          </div>
+
+          <p class="muted" style="margin:10px 0 0 0;">
+            If a document’s version changes, you must sign the new version to be considered complete.
+          </p>
+        </div>
+
+        <div class="legal-grid">
+          <% if (_legalTemplates.length) { %>
+            <% _legalTemplates
+              .filter(t => t && Number(t.active) === 1)
+              .sort((a,b) => (Number(b.required||0) - Number(a.required||0)) || String(a.title||'').localeCompare(String(b.title||'')))
+              .forEach(function(t){
+                const ex = findLatestExecForTemplate(t.id);
+
+                let statusText = 'Not signed';
+                let statusClass = 'bad';
+                let subText = (Number(t.required) === 1 ? 'Required' : 'Optional');
+
+                let needsResign = false;
+
+                if (ex) {
+                  const exVer = String(ex.template_version || '');
+                  const curVer = String(t.version || '');
+                  if (exVer && curVer && exVer !== curVer) {
+                    needsResign = true;
+                    statusText = 'Needs re-sign';
+                    statusClass = 'warn';
+                    subText = `Signed ${ex.signed_at || ''} (old version: ${exVer} → ${curVer})`;
+                  } else {
+                    statusText = 'Signed';
+                    statusClass = 'ok';
+                    subText = `Signed ${ex.signed_at || ''} • Version ${curVer || exVer || '—'}`;
+                  }
+                } else {
+                  statusText = (Number(t.required) === 1) ? 'Missing (required)' : 'Not signed';
+                  statusClass = (Number(t.required) === 1) ? 'warn' : 'bad';
+                  subText = (Number(t.required) === 1) ? 'Required • Not signed yet' : 'Optional • Not signed yet';
+                }
+            %>
+              <div class="legal-item">
+                <div class="legal-left">
+                  <p class="legal-title"><%= t.title || t.slug || 'Legal Document' %></p>
+                  <p class="legal-meta muted" style="margin:0;">
+                    <span class="pill <%= statusClass %>"><%= statusText %></span>
+                    <span style="margin-left:8px;"><%= subText %></span>
+                  </p>
+                  <p class="muted" style="margin:8px 0 0 0;">
+                    Template: <span class="mono"><%= t.slug %></span> · Version: <span class="mono"><%= t.version || '—' %></span>
+                  </p>
+                </div>
+
+                <div class="legal-actions no-print">
+                  <a class="btn primary" href="/model/legal/<%= t.slug %>">
+                    <%= (!ex || needsResign) ? 'Review & Sign' : 'View' %>
+                  </a>
+
+                  <% if (ex && ex.executed_pdf_filename) { %>
+                    <!-- Requires the route below -->
+                    <a class="btn secondary" href="/model/legal/executed/<%= ex.id %>/pdf" target="_blank" rel="noopener">
+                      View Executed PDF
+                    </a>
+                  <% } %>
+                </div>
+              </div>
+            <% }) %>
+          <% } else { %>
+            <div class="help-card">
+              <div class="pill warn">No legal templates available</div>
+              <p class="muted" style="margin:8px 0 0 0;">Ask staff to publish/activate legal templates in the admin panel.</p>
+            </div>
+          <% } %>
+        </div>
+
+        <div class="mini-actions no-print" style="margin-top: 14px;">
+          <a class="btn secondary" href="#release" data-pill="#release">Next: Master Release</a>
+        </div>
+      </section>
+
       <!-- MASTER RELEASE -->
-      <!-- ========================================================= -->
       <section id="release" class="portal-section print-block">
         <h3>Master Release</h3>
-        <p class="portal-note">
-          Review and sign the master release. This confirms consent, usage rights, and documentation.
-        </p>
+        <p class="portal-note">Review and sign the master release. This confirms consent, usage rights, and documentation.</p>
 
         <div class="help-card no-print">
           <div class="pill <%= masterRelease ? 'ok' : 'warn' %>">
             <%= masterRelease ? 'Master Release: signed' : 'Master Release: not signed yet' %>
           </div>
-          <p class="muted" style="margin:8px 0 0 0;">
-            If you need to print a copy for records, use your browser print after signing.
-          </p>
+          <p class="muted" style="margin:8px 0 0 0;">If you need to print a copy for records, use your browser print after signing.</p>
         </div>
 
         <% if (!masterRelease) { %>
@@ -437,22 +589,16 @@
         <% } %>
       </section>
 
-      <!-- ========================================================= -->
       <!-- SAFETY & CONSENT -->
-      <!-- ========================================================= -->
       <section id="safety" class="portal-section print-block">
         <h3>Safety &amp; Consent</h3>
-        <p class="portal-note">
-          Save boundaries and preferences for reference during planning and on-set workflow.
-        </p>
+        <p class="portal-note">Save boundaries and preferences for reference during planning and on-set workflow.</p>
 
         <div class="help-card no-print">
           <div class="pill <%= policies ? 'ok' : 'warn' %>">
             <%= policies ? 'Safety & Consent: saved' : 'Safety & Consent: not completed' %>
           </div>
-          <p class="muted" style="margin:8px 0 0 0;">
-            You can update these any time. Studio will confirm verbally on shoot day as well.
-          </p>
+          <p class="muted" style="margin:8px 0 0 0;">You can update these any time. Studio will confirm verbally on shoot day as well.</p>
         </div>
 
         <form action="/model/policies/save" method="POST" class="form-grid" style="margin-top: 14px;">
@@ -495,7 +641,7 @@
         </form>
       </section>
 
-    </div><!-- /portal-grid -->
+    </div>
   </main>
 
   <script>
@@ -515,19 +661,15 @@
         el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
 
-      // Click behavior: smooth scroll + active highlight
       document.querySelectorAll('[data-pill]').forEach(function(a){
-        a.addEventListener('click', function(e){
+        a.addEventListener('click', function(){
           var hash = a.getAttribute('data-pill');
           if (!hash) return;
-          // allow normal anchor update
           setActive(hash);
-          // smooth scroll after hash updates
           setTimeout(function(){ scrollToHash(hash); }, 10);
         });
       });
 
-      // On load, if hash exists, highlight and scroll
       if (window.location.hash) {
         setActive(window.location.hash);
         setTimeout(function(){ scrollToHash(window.location.hash); }, 30);
@@ -535,7 +677,6 @@
         setActive('#identity');
       }
 
-      // On hash change (back/forward)
       window.addEventListener('hashchange', function(){
         setActive(window.location.hash || '#identity');
       });

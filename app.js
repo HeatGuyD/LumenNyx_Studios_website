@@ -10,6 +10,7 @@ const { dbRun, dbGet, dbAll, ensureColumn, initDb } = require('./db');
 const { makeAudit } = require('./lib/audit');
 const { attachSessionToLocals } = require('./middleware/locals');
 const { sendMailOrLog } = require('./lib/mailer');
+const { makeCompliance } = require('./lib/compliance'); // ✅ ADD
 
 // Routers
 const publicRoutes = require('./routes/public');
@@ -81,8 +82,6 @@ const cookieMaxAgeMs =
 // ----------------------
 // TRUST PROXY (CRITICAL BEHIND NGINX/HTTPS)
 // ----------------------
-// If cookieSecure is true (HTTPS cookie), we MUST trust proxy,
-// otherwise req.secure can be wrong and sessions can behave inconsistently.
 const envTrustProxy = String(process.env.TRUST_PROXY || '').trim().toLowerCase();
 
 // Default behavior:
@@ -173,13 +172,20 @@ function getClientIp(req) {
   return req.ip || req.connection?.remoteAddress || null;
 }
 
-const ctx = Object.freeze({
+// ✅ Build ctx in 2 steps so we can attach compliance BEFORE freezing
+const ctxBase = {
   STUDIO_EMAILS,
   db: dbApi,
   audit,
   security: { getClientIp },
   uploadDirs,
-});
+};
+
+// ✅ Attach compliance middleware bundle
+ctxBase.compliance = makeCompliance(ctxBase);
+
+// ✅ Freeze final ctx
+const ctx = Object.freeze(ctxBase);
 
 // Locals middleware (makes session + studio emails available in views)
 app.use(attachSessionToLocals({ STUDIO_EMAILS }));

@@ -1,25 +1,106 @@
-<!-- FILE: views/model-legal-sign.ejs -->
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title><%= template.title %> – LumenNyx Studios</title>
+  <meta charset="utf-8" />
+  <title><%= template ? template.title : 'Legal Document' %> – LumenNyx Studios</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/css/style.css" />
+
   <style>
-    .doc-body { background: rgba(255,255,255,0.03); padding: 16px; border-radius: 12px; }
-    .doc-body h1, .doc-body h2, .doc-body h3 { margin-top: 0.8rem; }
-    .sig-preview { display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-top: 8px; }
-    .sig-preview img { max-height: 72px; background: #fff; border-radius: 8px; padding: 6px; }
+    .wrap { max-width: 1100px; margin: 1.5rem auto 2rem auto; padding: 0 1.25rem; }
+    .muted { color:#9aa0b5; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:0.92rem; word-break: break-word; }
+
+    .card {
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 16px;
+      background: rgba(0,0,0,0.25);
+      padding: 16px;
+    }
+
+    .topbar { display:flex; align-items:flex-start; justify-content:space-between; gap: 12px; }
+    .topbar h2 { margin: 0; }
+    .actions { display:flex; gap:10px; flex-wrap: wrap; justify-content:flex-end; }
+    .btn.small { padding: 0.35rem 0.85rem; font-size: 0.85rem; }
+
+    .pill {
+      display:inline-flex;
+      align-items:center;
+      gap: 8px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(0,0,0,0.25);
+      white-space: nowrap;
+    }
+    .pill.ok { border-color: rgba(0,255,160,0.25); }
+    .pill.warn { border-color: rgba(255,200,60,0.30); }
+    .pill.bad { border-color: rgba(255,80,80,0.30); }
+
+    .doc {
+      margin-top: 14px;
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 14px;
+      background: rgba(0,0,0,0.18);
+      padding: 16px;
+      line-height: 1.55;
+    }
+    .doc h1, .doc h2, .doc h3 { margin-top: 12px; }
+    .doc p { margin: 10px 0; }
+    .doc ul, .doc ol { margin: 10px 0 10px 22px; }
+
+    .sign {
+      margin-top: 14px;
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .row {
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .warnbox {
+      border: 1px solid rgba(255,200,60,0.25);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(255,200,60,0.06);
+    }
+
+    .badbox {
+      border: 1px solid rgba(255,80,80,0.25);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(255,80,80,0.06);
+    }
+
+    .checkbox {
+      display:flex;
+      gap: 10px;
+      align-items:flex-start;
+      margin-top: 8px;
+    }
+    .checkbox input { margin-top: 3px; }
+
+    .footer-actions { display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
   </style>
 </head>
+
 <body>
   <header class="site-header">
     <div class="site-header-inner">
       <a href="/" class="brand-link">
-        <span class="brand-mark"><img src="/img/lumennyx-mark.png" alt="LumenNyx"></span>
+        <span class="brand-mark">
+          <img src="/img/lumennyx-mark.png" alt="LumenNyx logo">
+        </span>
         <span class="brand-text">LUMENNYX STUDIOS</span>
       </a>
+
       <nav class="main-nav">
         <a href="/model/profile">Model Portal</a>
         <a href="/model/legal" class="active">Legal</a>
@@ -31,72 +112,97 @@
     </div>
   </header>
 
-  <main class="home" style="max-width: 1000px; margin: 1.5rem auto 2rem auto; padding: 0 1.25rem;">
-    <section class="portal-section">
-      <h2><%= template.title %></h2>
-      <p class="portal-note">
-        Version: <span class="mono"><%= template.version %></span>
-        <% if (Number(template.required) === 1) { %> • Required <% } %>
-      </p>
+  <main class="wrap">
+    <% if (message) { %>
+      <div class="alert success"><%= message %></div>
+    <% } %>
+    <% if (error) { %>
+      <div class="alert error"><%= error %></div>
+    <% } %>
 
-      <% if (message) { %><div class="alert success"><%= message %></div><% } %>
-      <% if (error) { %><div class="alert error"><%= error %></div><% } %>
+    <section class="card">
+      <div class="topbar">
+        <div>
+          <h2><%= template ? template.title : 'Legal Document' %></h2>
+          <div class="muted" style="margin-top: 6px;">
+            Version: <span class="mono"><%= template ? template.version : '—' %></span>
+            · Slug: <span class="mono"><%= template ? template.slug : '—' %></span>
+            <% if (template && template.required) { %>
+              · <span class="pill warn">Required</span>
+            <% } else { %>
+              · <span class="pill">Optional</span>
+            <% } %>
+          </div>
+        </div>
+
+        <div class="actions">
+          <a class="btn secondary small" href="/model/legal">Back to Legal</a>
+          <a class="btn secondary small" href="/model/profile">Back to Profile</a>
+        </div>
+      </div>
 
       <% if (!signature) { %>
-        <div class="alert error">
-          You must complete your signature first. Please go to <a href="/model/signature">Signature Setup</a>.
+        <div class="badbox" style="margin-top: 14px;">
+          <div class="pill bad">Signature required</div>
+          <p class="muted" style="margin: 10px 0 0 0;">
+            You must complete <strong>Signature Setup</strong> before signing legal documents.
+          </p>
+          <div style="margin-top: 10px;">
+            <a class="btn primary" href="/model/signature">Go to Signature Setup</a>
+          </div>
         </div>
       <% } %>
 
       <% if (alreadySigned) { %>
-        <div class="alert success">This document is already signed for the current version.</div>
+        <div class="warnbox" style="margin-top: 14px;">
+          <div class="pill ok">Already signed</div>
+          <p class="muted" style="margin: 10px 0 0 0;">
+            You have already signed the latest version of this document. You may review it again below.
+          </p>
+        </div>
+      <% } else if (needsResign) { %>
+        <div class="warnbox" style="margin-top: 14px;">
+          <div class="pill warn">Re-sign required</div>
+          <p class="muted" style="margin: 10px 0 0 0;">
+            This document was updated since your last signature. Please review and sign the updated version.
+          </p>
+        </div>
       <% } %>
 
-      <% if (needsResign) { %>
-        <div class="alert error">This document has been updated. Please re-sign the latest version.</div>
-      <% } %>
-
-      <div class="doc-body" style="margin-top:12px;">
-        <%- template.body_html %>
+      <div class="doc">
+        <!-- NOTE: body_html is stored as HTML in DB; render as raw HTML -->
+        <%- template && template.body_html ? template.body_html : '<p class="muted">No document body found.</p>' %>
       </div>
 
-      <hr style="margin: 18px 0; opacity:0.2;">
-
-      <h3>Signature & Agreement</h3>
-
-      <% if (signature && signature.signature_png) { %>
-        <div class="sig-preview">
+      <div class="sign">
+        <div class="row">
           <div>
-            <div class="muted">Signature on file</div>
-            <% if (String(signature.signature_png).startsWith('data:image')) { %>
-              <img src="<%= signature.signature_png %>" alt="Signature">
-            <% } else { %>
-              <div class="muted mono"><%= signature.signature_png %></div>
-            <% } %>
-          </div>
-          <div class="muted">
-            If this is not correct, update it here:
-            <a href="/model/signature">Signature Setup</a>
+            <div class="muted">
+              Signing will generate an executed PDF saved to the studio record system.
+            </div>
+            <div class="muted" style="margin-top:6px;">
+              Your signature on file: <span class="mono"><%= signature ? (signature.typed_name || 'On file') : 'Missing' %></span>
+            </div>
           </div>
         </div>
-      <% } %>
 
-      <form method="POST" action="/model/legal/<%= template.slug %>" style="margin-top:12px;">
-        <label style="display:flex; gap:10px; align-items:flex-start;">
-          <input type="checkbox" name="agree" required>
-          <span>
-            I have read and agree to the document above. I understand that submitting will generate an executed PDF
-            that is stored for studio compliance records.
-          </span>
-        </label>
+        <form action="/model/legal/<%= template.slug %>" method="POST">
+          <div class="checkbox">
+            <input id="agree" name="agree" type="checkbox" />
+            <label for="agree">
+              I have read this document and I agree to the terms.
+            </label>
+          </div>
 
-        <div style="margin-top: 14px;">
-          <button type="submit" class="btn primary" <%= signature ? '' : 'disabled' %>>
-            <%= alreadySigned ? 'Re-Generate Executed PDF' : 'Sign & Submit' %>
-          </button>
-          <a class="btn secondary" href="/model/legal" style="margin-left:8px;">Back</a>
-        </div>
-      </form>
+          <div class="footer-actions" style="margin-top: 14px;">
+            <a class="btn secondary" href="/model/legal">Cancel</a>
+            <button class="btn primary" type="submit" <%= !signature ? 'disabled' : '' %>>
+              Sign & Generate PDF
+            </button>
+          </div>
+        </form>
+      </div>
+
     </section>
   </main>
 </body>

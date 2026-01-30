@@ -14,15 +14,32 @@ module.exports = function modelRoutes(ctx) {
     return next();
   }
 
+  // ✅ Booking/compliance middleware (added via ctx in app.js)
+  const requireModelCompliant = ctx.compliance?.requireModelCompliant;
+
+  // Utility: best-effort flash passthrough (keeps your current pattern)
+  function consumeFlash(req, res) {
+    const message = res?.locals?.message || req?.session?.message || null;
+    const error = res?.locals?.error || req?.session?.error || null;
+
+    if (req.session) {
+      delete req.session.message;
+      delete req.session.error;
+    }
+    return { message, error };
+  }
+
   // -------------------------
   // Model Profile (wired)
   // -------------------------
   router.get('/model/profile', requireModel, async (req, res) => {
     try {
       const userId = req.session.user.id;
+      const flash = consumeFlash(req, res);
 
       const profile = await dbGet(`SELECT * FROM model_profiles WHERE user_id=? LIMIT 1`, [userId]);
 
+      // Compliance documents uploaded (ID, W-9, etc.)
       const documents = await dbAll(
         `SELECT id, doc_type, filename, uploaded_at
          FROM compliance_documents
@@ -31,6 +48,7 @@ module.exports = function modelRoutes(ctx) {
         [userId]
       );
 
+      // Photos uploaded by model
       const photos = await dbAll(
         `SELECT id, filename, caption, is_primary, priority, uploaded_at
          FROM model_photos
@@ -39,6 +57,7 @@ module.exports = function modelRoutes(ctx) {
         [userId]
       );
 
+      // Master release signed record
       const masterRelease = await dbGet(
         `SELECT id, signed_name, signed_at
          FROM master_releases
@@ -48,6 +67,7 @@ module.exports = function modelRoutes(ctx) {
         [userId]
       );
 
+      // Consent policies (your schema stores JSON + version)
       const policies = await dbGet(
         `SELECT user_id, consent_json, consent_version, updated_at, created_at
          FROM consent_policies
@@ -55,15 +75,49 @@ module.exports = function modelRoutes(ctx) {
         [userId]
       );
 
+      // ✅ LEGAL DOC TEMPLATES + EXECUTED LEGAL DOCS
+      const legalTemplates = await dbAll(
+        `SELECT id, slug, title, version, required, active, created_at, updated_at
+         FROM legal_templates
+         WHERE active=1
+         ORDER BY required DESC, title ASC`
+      );
+
+      const executedLegal = await dbAll(
+        `SELECT id, user_id, doc_kind, template_id, template_slug, template_title,
+                template_version, signed_at, executed_pdf_filename
+         FROM executed_documents
+         WHERE user_id=? AND doc_kind='legal'
+         ORDER BY datetime(signed_at) DESC, id DESC`,
+        [userId]
+      );
+
+      const documentsMapped = (documents || []).map((d) => ({
+        ...d,
+        created_at: d.uploaded_at || d.created_at || null,
+        public_url: d.filename ? `/uploads/docs/${encodeURIComponent(d.filename)}` : null,
+      }));
+
+      const photosMapped = (photos || []).map((p) => ({
+        ...p,
+        created_at: p.uploaded_at || p.created_at || null,
+        public_url: p.filename ? `/uploads/photos/${encodeURIComponent(p.filename)}` : null,
+      }));
+
       return res.render('model-profile', {
         currentUser: req.session.user,
-        message: res.locals.message || null,
-        error: res.locals.error || null,
+        message: flash.message,
+        error: flash.error,
+
         profile: profile || {},
-        documents: documents || [],
-        photos: photos || [],
+        documents: documentsMapped || [],
+        photos: photosMapped || [],
+
         masterRelease: masterRelease || null,
         policies: policies || null,
+
+        legalTemplates: legalTemplates || [],
+        executedLegal: executedLegal || [],
       });
     } catch (e) {
       console.error('Model profile error:', e);
@@ -72,46 +126,59 @@ module.exports = function modelRoutes(ctx) {
   });
 
   // -------------------------
-  // Model Bookings (wired)
+  // Model Bookings (wired) ✅ NOW COMPLIANCE-GATED
   // -------------------------
-  router.get('/model/bookings', requireModel, async (req, res) => {
-    try {
-      const userId = req.session.user.id;
+  router.get(
+    '/model/bookings',
+    requireModel,
+    requireModelCompliant ? requireModelCompliant : (req, _res, next) => next(),
+    async (req, res) => {
+      try {
+        const userId = req.session.user.id;
+        const flash = consumeFlash(req, res);
 
-      const bookings = await dbAll(
-        `
-        SELECT b.id, b.title, b.shoot_date, b.status
-        FROM booking_models bm
-        JOIN bookings b ON b.id = bm.booking_id
-        WHERE bm.user_id=?
-        ORDER BY b.created_at DESC
-        `,
-        [userId]
-      );
+        const bookings = await dbAll(
+          `
+          SELECT b.id, b.title, b.shoot_date, b.status
+          FROM booking_models bm
+          JOIN bookings b ON b.id = bm.booking_id
+          WHERE bm.user_id=?
+          ORDER BY b.created_at DESC
+          `,
+          [userId]
+        );
 
-      return res.render('model-bookings', {
-        currentUser: req.session.user,
-        bookings: bookings || [],
-        message: res.locals.message || null,
-        error: res.locals.error || null,
-      });
-    } catch (e) {
-      console.error('Model bookings error:', e);
-      return res.status(500).render('error', { message: 'Could not load bookings.' });
+        return res.render('model-bookings', {
+          currentUser: req.session.user,
+          bookings: bookings || [],
+          message: flash.message,
+          error: flash.error,
+        });
+      } catch (e) {
+        console.error('Model bookings error:', e);
+        return res.status(500).render('error', { message: 'Could not load bookings.' });
+      }
     }
-  });
+  );
 
-  router.get('/model/bookings/:id', requireModel, async (req, res) => {
-    req.session.message = 'Booking detail view is not enabled yet. Please view bookings list.';
-    return res.redirect('/model/bookings');
-  });
+  router.get(
+    '/model/bookings/:id',
+    requireModel,
+    requireModelCompliant ? requireModelCompliant : (req, _res, next) => next(),
+    async (req, res) => {
+      req.session.message = 'Booking detail view is not enabled yet. Please view bookings list.';
+      return res.redirect('/model/bookings');
+    }
+  );
 
   // -------------------------
   // Model Scenes (wired)
+  // If you ALSO want scenes hidden behind compliance, add requireModelCompliant here too.
   // -------------------------
   router.get('/model/scenes', requireModel, async (req, res) => {
     try {
       const userId = req.session.user.id;
+      const flash = consumeFlash(req, res);
 
       const scenes = await dbAll(
         `
@@ -133,8 +200,8 @@ module.exports = function modelRoutes(ctx) {
       return res.render('model-scenes', {
         currentUser: req.session.user,
         scenes: mapped,
-        message: res.locals.message || null,
-        error: res.locals.error || null,
+        message: flash.message,
+        error: flash.error,
       });
     } catch (e) {
       console.error('Model scenes error:', e);
@@ -148,6 +215,7 @@ module.exports = function modelRoutes(ctx) {
   router.get('/model/signature', requireModel, async (req, res) => {
     try {
       const userId = req.session.user.id;
+      const flash = consumeFlash(req, res);
 
       const profile = await dbGet(`SELECT * FROM model_profiles WHERE user_id=? LIMIT 1`, [userId]);
 
@@ -164,8 +232,8 @@ module.exports = function modelRoutes(ctx) {
         currentUser: req.session.user,
         profile: profile || {},
         signature: signature || null,
-        message: res.locals.message || null,
-        error: res.locals.error || null,
+        message: flash.message,
+        error: flash.error,
       });
     } catch (e) {
       console.error('Model signature GET error:', e);

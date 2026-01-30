@@ -74,11 +74,11 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
   // Storage
   const executedPdfDir = ctx.uploadDirs.docUploadsDir;
 
-  // Reuse your existing guards from ctx (we’ll rely on doc.js to pass them in ctx)
+  // Guards from ctx (doc.js injects these)
   const ensureLoggedIn = ctx.ensureLoggedIn;
   const ensureAdmin = ctx.ensureAdmin;
 
-  // Reuse PDF renderer from ctx
+  // PDF renderer from ctx
   const renderPdfFromHtml = ctx.renderPdfFromHtml;
 
   async function getLatestSignature(userId) {
@@ -140,8 +140,7 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
   // SCHEMA (legal templates)
   // -----------------------
   (async () => {
-    // Ensure executed_documents exists (doc.js already creates it in your current file,
-    // but keeping this harmlessly defensive)
+    // Defensive: ensure executed_documents exists (doc.js already creates it)
     await dbRun(`
       CREATE TABLE IF NOT EXISTS executed_documents (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -182,6 +181,48 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
     await dbRun(`CREATE INDEX IF NOT EXISTS idx_legal_templates_active ON legal_templates(active);`);
     await dbRun(`CREATE INDEX IF NOT EXISTS idx_legal_templates_required ON legal_templates(required);`);
   })().catch((e) => console.error('doc_legal schema init failed:', e));
+
+  // ============================================================
+  // ✅ MODEL: VIEW EXECUTED LEGAL PDF (MODEL-ONLY, OWN-DOC ONLY)
+  // ============================================================
+  router.get('/model/legal/executed/:id/pdf', ensureLoggedIn, async (req, res) => {
+    try {
+      if (req.session?.user?.role !== 'model') {
+        return res.status(403).render('error', { message: 'Access denied.' });
+      }
+
+      const userId = req.session.user.id;
+      const id = parseInt(req.params.id, 10);
+      if (!id) return res.status(400).render('error', { message: 'Invalid document id.' });
+
+      const row = await dbGet(
+        `SELECT id, user_id, doc_kind, executed_pdf_filename
+         FROM executed_documents
+         WHERE id=? AND doc_kind='legal'
+         LIMIT 1`,
+        [id]
+      );
+
+      if (!row || Number(row.user_id) !== Number(userId)) {
+        return res.status(404).render('error', { message: 'Document not found.' });
+      }
+      if (!row.executed_pdf_filename) {
+        return res.status(404).render('error', { message: 'PDF not available.' });
+      }
+
+      const fp = path.join(executedPdfDir, path.basename(row.executed_pdf_filename));
+      if (!fs.existsSync(fp)) {
+        return res.status(404).render('error', { message: 'PDF file missing on server.' });
+      }
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${path.basename(row.executed_pdf_filename)}"`);
+      return res.sendFile(fp);
+    } catch (e) {
+      console.error('Model executed legal PDF error:', e);
+      return res.status(500).render('error', { message: 'Could not load PDF.' });
+    }
+  });
 
   // ============================================================
   // ADMIN: LEGAL TEMPLATE LIBRARY
@@ -352,11 +393,12 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
          ORDER BY required DESC, id ASC`
       );
 
+      // ✅ include id so you can link to /model/legal/executed/:id/pdf
       const execRows = await dbAll(
-        `SELECT template_id, template_version, signed_at, executed_pdf_filename
+        `SELECT id, template_id, template_version, signed_at, executed_pdf_filename
          FROM executed_documents
          WHERE user_id=? AND doc_kind='legal'
-         ORDER BY signed_at DESC`,
+         ORDER BY datetime(signed_at) DESC, id DESC`,
         [userId]
       );
 
@@ -374,6 +416,7 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
           signed,
           signed_at: exec ? exec.signed_at : null,
           needs_resign: needsResign,
+          executed_id: exec ? exec.id : null,
         };
       });
 
@@ -420,7 +463,7 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
         `SELECT id, template_version, signed_at
          FROM executed_documents
          WHERE user_id=? AND doc_kind='legal' AND template_id=?
-         ORDER BY signed_at DESC
+         ORDER BY datetime(signed_at) DESC, id DESC
          LIMIT 1`,
         [userId, tpl.id]
       );
@@ -516,6 +559,7 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
         signatureDataUrl = null;
       }
 
+      // NOTE: doc.js must pass a ctx object where ctx._res is set per-request.
       const html = await new Promise((resolve, reject) => {
         ctx._res.render(
           'print/legal-template',
@@ -660,7 +704,6 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
     return { recipients, result };
   }
 
-  // These email routes are optional; keep only if you’re using them.
   router.post('/studio-panel/models/:id/email/identity', ensureAdmin, async (req, res) => {
     try {
       const id = parseInt(req.params.id, 10);

@@ -1,55 +1,89 @@
-<!-- FILE: views/print/legal-template.ejs -->
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <title><%= template.title %> – Executed</title>
+  <meta charset="utf-8" />
+  <title><%= template ? template.title : 'Executed Legal Document' %></title>
   <style>
-    body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color:#111; }
-    h1 { font-size: 18px; margin: 0 0 6px 0; }
-    .meta { font-size: 11px; color:#333; margin-bottom: 10px; }
-    .box { border:1px solid #bbb; padding:10px; border-radius: 8px; }
-    .sig { margin-top: 14px; display:flex; gap:16px; align-items:flex-start; }
-    .sig img { max-height: 90px; border:1px solid #ccc; padding:6px; border-radius: 6px; background:#fff; }
-    .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; }
-    hr { border:0; border-top:1px solid #ddd; margin: 12px 0; }
+    body { font-family: Arial, sans-serif; color:#111; font-size: 12px; }
+    .header { border-bottom: 2px solid #111; padding-bottom: 10px; margin-bottom: 14px; }
+    .brand { font-size: 16px; font-weight: 700; }
+    .meta { margin-top: 4px; color:#333; font-size: 11px; }
+    .section { margin: 14px 0; }
+    .box { border: 1px solid #111; border-radius: 8px; padding: 10px; }
+    .small { font-size: 11px; color:#333; }
+    .hr { border-top: 1px solid #ccc; margin: 12px 0; }
+    .doc { line-height: 1.5; }
+    .doc h1,.doc h2,.doc h3 { margin: 10px 0 6px; }
+    .doc p { margin: 8px 0; }
+    .sigrow { display:flex; gap: 16px; align-items:flex-end; }
+    .sigbox { width: 340px; }
+    .sigimg { border: 1px solid #111; height: 90px; border-radius: 6px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+    .sigimg img { max-height: 88px; max-width: 330px; }
+    .line { border-top: 1px solid #111; margin-top: 8px; padding-top: 6px; }
+    .label { font-weight: 700; }
+    a { color:#111; text-decoration:none; }
   </style>
 </head>
+
 <body>
-  <h1><%= template.title %></h1>
-  <div class="meta">
-    Template: <span class="mono"><%= template.slug %></span> •
-    Version: <span class="mono"><%= template.version %></span> •
-    Signed At (ISO): <span class="mono"><%= (payload && payload.consent && payload.consent.agreedAtIso) ? payload.consent.agreedAtIso : '' %></span>
-  </div>
-
-  <div class="box">
-    <%- template.body_html %>
-  </div>
-
-  <hr>
-
-  <div class="sig">
-    <div>
-      <div><strong>Signed By</strong></div>
-      <div class="mono">User ID: <%= payload && payload.signer ? payload.signer.userId : '' %></div>
-      <div class="mono">Username: <%= payload && payload.signer ? (payload.signer.username || '') : '' %></div>
-      <div class="mono">IP: <%= audit ? audit.ip : '' %></div>
-      <div class="mono">UA: <%= audit ? audit.ua : '' %></div>
+  <div class="header">
+    <div class="brand">LumenNyx Studios — Executed Legal Document</div>
+    <div class="meta">
+      Document: <strong><%= template ? template.title : '—' %></strong>
+      · Version: <strong><%= template ? template.version : '—' %></strong>
+      · Slug: <strong><%= template ? template.slug : '—' %></strong>
     </div>
+    <div class="meta">
+      Generated: <strong><%= (audit && audit.signedAtIso) ? audit.signedAtIso : new Date().toISOString() %></strong>
+    </div>
+  </div>
 
-    <div>
-      <div><strong>Signature</strong></div>
-      <% if (signature && signature.signature_data_url) { %>
-        <img src="<%= signature.signature_data_url %>" alt="Signature">
-      <% } else if (signature && signature.signature_png && String(signature.signature_png).startsWith('data:image')) { %>
-        <img src="<%= signature.signature_png %>" alt="Signature">
-      <% } else { %>
-        <div class="mono">[Signature image unavailable]</div>
-      <% } %>
+  <div class="section box">
+    <div class="small">
+      <span class="label">Studio Contact:</span>
+      <%= (studioEmails && (studioEmails.admin || studioEmails.booking || studioEmails.general)) ? (studioEmails.admin || studioEmails.booking || studioEmails.general) : '—' %>
+    </div>
+    <div class="small" style="margin-top:4px;">
+      <span class="label">Signer (User):</span>
+      <%= (payload && payload.signer && payload.signer.username) ? payload.signer.username : '—' %>
+      (ID: <%= (payload && payload.signer && payload.signer.userId) ? payload.signer.userId : '—' %>)
+    </div>
+  </div>
 
-      <div class="mono" style="margin-top:6px;">
-        Signature ID: <%= signature ? (signature.id || '') : '' %>
+  <div class="section box doc">
+    <!-- Render the stored HTML body -->
+    <%- template && template.body_html ? template.body_html : '<p>No document body found.</p>' %>
+  </div>
+
+  <div class="section box">
+    <div class="sigrow">
+      <div class="sigbox">
+        <div class="label">Signature</div>
+        <div class="sigimg">
+          <% if (signature && signature.signature_data_url) { %>
+            <img src="<%= signature.signature_data_url %>" alt="Signature" />
+          <% } else { %>
+            <div class="small">Signature image not available</div>
+          <% } %>
+        </div>
+        <div class="line small">
+          Signed Name: <strong><%= signature ? (signature.typed_name || '—') : '—' %></strong>
+        </div>
+      </div>
+
+      <div style="flex:1;">
+        <div class="label">Audit Trail</div>
+        <div class="small" style="margin-top: 6px;">
+          IP: <strong><%= audit ? (audit.ip || '—') : '—' %></strong><br/>
+          User Agent: <strong><%= audit ? (audit.ua || '—') : '—' %></strong><br/>
+          Signed At: <strong><%= audit ? (audit.signedAtIso || '—') : '—' %></strong>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="small">
+          This PDF is a generated record of the executed agreement for internal compliance and recordkeeping.
+        </div>
       </div>
     </div>
   </div>

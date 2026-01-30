@@ -217,6 +217,19 @@ module.exports = function docRoutes(ctx) {
 
     await dbRun(`CREATE INDEX IF NOT EXISTS idx_legal_templates_active ON legal_templates(active);`);
     await dbRun(`CREATE INDEX IF NOT EXISTS idx_legal_templates_required ON legal_templates(required);`);
+
+    // ✅ NEW: Scene legal snapshots (used when a scene is created/updated)
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS scene_legal_snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        scene_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        snapshot_json TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await dbRun(`CREATE INDEX IF NOT EXISTS idx_scene_legal_snapshots_scene ON scene_legal_snapshots(scene_id);`);
+    await dbRun(`CREATE INDEX IF NOT EXISTS idx_scene_legal_snapshots_user ON scene_legal_snapshots(user_id);`);
   })().catch((e) => console.error('docRoutes schema init failed:', e));
 
   function consumeFlash(req) {
@@ -273,6 +286,265 @@ module.exports = function docRoutes(ctx) {
 
     return docHash;
   }
+
+  /* ======================================================================
+     ✅ COMPLIANCE ENGINE (badge + booking lock + scene snapshot support)
+     ----------------------------------------------------------------------
+     IMPORTANT: doc.js cannot directly "lock bookings" because bookings routes
+     live in routes/model.js. So we expose:
+       - ctx.compliance.getModelComplianceStatus(modelId)
+       - ctx.compliance.requireModelCompliant(req,res,next)
+       - ctx.compliance.captureSceneLegalSnapshot(sceneId, modelId, extra)
+     ====================================================================== */
+
+  function parseCsvList(s) {
+    return String(s || '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean);
+  }
+
+  // Optional: define REQUIRED_COMPLIANCE_DOC_TYPES="id_front,id_back,w9"
+  const REQUIRED_COMPLIANCE_DOC_TYPES = parseCsvList(process.env.REQUIRED_COMPLIANCE_DOC_TYPES);
+
+  async function getRequiredLegalTemplates() {
+    return dbAll(
+      `SELECT id, slug, title, version, required, active, updated_at
+       FROM legal_templates
+       WHERE active=1 AND required=1
+       ORDER BY id ASC`
+    );
+  }
+
+  async function getLatestExecutedLegalByTemplate(userId) {
+    const rows = await dbAll(
+      `SELECT template_id, template_version, signed_at, executed_pdf_filename, document_hash
+       FROM executed_documents
+       WHERE user_id=? AND doc_kind='legal'
+       ORDER BY signed_at DESC`,
+      [userId]
+    );
+    const latest = new Map();
+    (rows || []).forEach((r) => {
+      if (!latest.has(r.template_id)) latest.set(r.template_id, r);
+    });
+    return latest;
+  }
+
+  async function getComplianceDocumentsByType(userId) {
+    // Note: your schema exists elsewhere; we read it safely.
+    // If table doesn't exist, this will throw; we catch in status builder.
+    const docs = await dbAll(
+      `SELECT id, doc_type, filename, uploaded_at
+       FROM compliance_documents
+       WHERE user_id=?
+       ORDER BY uploaded_at DESC`,
+      [userId]
+    );
+
+    const map = new Map();
+    (docs || []).forEach((d) => {
+      const k = String(d.doc_type || '').trim().toLowerCase();
+      if (!k) return;
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push(d);
+    });
+
+    return { docs: docs || [], byType: map };
+  }
+
+  async function getModelComplianceStatus(modelId) {
+    const out = {
+      modelId,
+      ok: false,
+      // top-level gates
+      hasMasterRelease: false,
+      hasConsentPolicy: false,
+      requiredLegal: { total: 0, missing: 0, needsResign: 0, items: [] },
+      requiredUploads: { required: REQUIRED_COMPLIANCE_DOC_TYPES, missing: [], present: [] },
+      // debug/info
+      timestamps: { computedAt: new Date().toISOString() },
+    };
+
+    // Master release
+    const mr = await dbGet(
+      `SELECT id, signed_at
+       FROM master_releases
+       WHERE user_id=?
+       ORDER BY datetime(signed_at) DESC, id DESC
+       LIMIT 1`,
+      [modelId]
+    );
+    out.hasMasterRelease = !!mr;
+
+    // Consent policy
+    const cp = await dbGet(
+      `SELECT user_id, updated_at, created_at
+       FROM consent_policies
+       WHERE user_id=?
+       LIMIT 1`,
+      [modelId]
+    );
+    out.hasConsentPolicy = !!cp;
+
+    // Required legal templates: signed + version match
+    const requiredTemplates = await getRequiredLegalTemplates();
+    const latestExec = await getLatestExecutedLegalByTemplate(modelId);
+
+    const reqItems = (requiredTemplates || []).map((t) => {
+      const exec = latestExec.get(t.id) || null;
+      const signed = !!exec;
+      const needsResign = signed && String(exec.template_version || '') !== String(t.version || '');
+      return {
+        template_id: t.id,
+        slug: t.slug,
+        title: t.title,
+        version: t.version,
+        signed,
+        signed_at: exec ? exec.signed_at : null,
+        needs_resign: needsResign,
+        executed_pdf_filename: exec ? exec.executed_pdf_filename : null,
+        document_hash: exec ? exec.document_hash : null,
+      };
+    });
+
+    out.requiredLegal.total = reqItems.length;
+    out.requiredLegal.items = reqItems;
+    out.requiredLegal.missing = reqItems.filter((x) => !x.signed).length;
+    out.requiredLegal.needsResign = reqItems.filter((x) => x.needs_resign).length;
+
+    // Required uploads (optional by env)
+    if (REQUIRED_COMPLIANCE_DOC_TYPES.length) {
+      try {
+        const { byType } = await getComplianceDocumentsByType(modelId);
+        const missing = [];
+        const present = [];
+        for (const t of REQUIRED_COMPLIANCE_DOC_TYPES) {
+          const key = String(t).trim().toLowerCase();
+          const has = byType.has(key) && (byType.get(key) || []).length > 0;
+          if (has) present.push(key);
+          else missing.push(key);
+        }
+        out.requiredUploads.missing = missing;
+        out.requiredUploads.present = present;
+      } catch (e) {
+        // If compliance_documents table isn't present yet, treat required uploads as missing.
+        out.requiredUploads.missing = [...REQUIRED_COMPLIANCE_DOC_TYPES];
+        out.requiredUploads.present = [];
+      }
+    }
+
+    const uploadsOk = !out.requiredUploads.required.length || out.requiredUploads.missing.length === 0;
+    const legalOk = out.requiredLegal.missing === 0 && out.requiredLegal.needsResign === 0;
+
+    out.ok = !!out.hasMasterRelease && !!out.hasConsentPolicy && uploadsOk && legalOk;
+    return out;
+  }
+
+  async function captureSceneLegalSnapshot({ sceneId, modelId, extra }) {
+    // Snapshot required legal doc status at the time of scene creation.
+    const status = await getModelComplianceStatus(modelId);
+
+    const snapshot = {
+      kind: 'scene_legal_snapshot',
+      sceneId,
+      modelId,
+      complianceOk: status.ok,
+      masterRelease: status.hasMasterRelease,
+      consentPolicy: status.hasConsentPolicy,
+      requiredLegal: status.requiredLegal,
+      requiredUploads: status.requiredUploads,
+      extra: extra || null,
+      createdAtIso: new Date().toISOString(),
+    };
+
+    await dbRun(
+      `INSERT INTO scene_legal_snapshots (scene_id, user_id, snapshot_json)
+       VALUES (?, ?, ?)`,
+      [sceneId, modelId, JSON.stringify(snapshot)]
+    );
+
+    return snapshot;
+  }
+
+  // Expose for other route files (model.js, scenes routes, booking routes)
+  if (!ctx.compliance) ctx.compliance = {};
+  ctx.compliance.getModelComplianceStatus = getModelComplianceStatus;
+  ctx.compliance.captureSceneLegalSnapshot = captureSceneLegalSnapshot;
+
+  // Middleware: call this from bookings routes to lock until compliant
+  ctx.compliance.requireModelCompliant = async function requireModelCompliant(req, res, next) {
+    try {
+      const user = req.session?.user;
+      if (!user || user.role !== 'model') return res.status(403).render('error', { message: 'Access denied.' });
+
+      const status = await getModelComplianceStatus(user.id);
+      if (status.ok) return next();
+
+      req.session.error =
+        'Bookings are locked until your required compliance documents are complete (Signature, Master Release, Consent, and Required Legal Documents).';
+      return res.redirect('/model/profile');
+    } catch (e) {
+      console.error('requireModelCompliant error:', e);
+      req.session.error = 'Could not verify compliance status.';
+      return res.redirect('/model/profile');
+    }
+  };
+
+  // ============================================================
+  // ✅ ADMIN + MODEL: Compliance status endpoints (Badge source)
+  // ============================================================
+  router.get('/model/compliance.json', ensureLoggedIn, async (req, res) => {
+    try {
+      if (req.session?.user?.role !== 'model') return res.status(403).json({ error: 'Forbidden' });
+      const status = await getModelComplianceStatus(req.session.user.id);
+      return res.json(status);
+    } catch (e) {
+      console.error('model compliance json error:', e);
+      return res.status(500).json({ error: 'Could not compute compliance.' });
+    }
+  });
+
+  router.get('/studio-panel/models/:id/compliance.json', ensureAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (!id) return res.status(400).json({ error: 'Invalid model id.' });
+      const status = await getModelComplianceStatus(id);
+      return res.json(status);
+    } catch (e) {
+      console.error('admin compliance json error:', e);
+      return res.status(500).json({ error: 'Could not compute compliance.' });
+    }
+  });
+
+  // Optional admin endpoint: view latest scene snapshot for a scene
+  router.get('/studio-panel/scenes/:sceneId/legal-snapshot.json', ensureAdmin, async (req, res) => {
+    try {
+      const sceneId = parseInt(req.params.sceneId, 10);
+      if (!sceneId) return res.status(400).json({ error: 'Invalid scene id.' });
+
+      const row = await dbGet(
+        `SELECT id, scene_id, user_id, snapshot_json, created_at
+         FROM scene_legal_snapshots
+         WHERE scene_id=?
+         ORDER BY datetime(created_at) DESC, id DESC
+         LIMIT 1`,
+        [sceneId]
+      );
+
+      if (!row) return res.status(404).json({ error: 'No snapshot found.' });
+      return res.json({
+        id: row.id,
+        scene_id: row.scene_id,
+        user_id: row.user_id,
+        created_at: row.created_at,
+        snapshot: JSON.parse(row.snapshot_json || '{}'),
+      });
+    } catch (e) {
+      console.error('scene snapshot json error:', e);
+      return res.status(500).json({ error: 'Could not load snapshot.' });
+    }
+  });
 
   // ============================================================
   // DOCS HUB (legacy + uploaded/template docs)
