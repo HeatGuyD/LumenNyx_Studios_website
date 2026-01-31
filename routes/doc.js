@@ -25,6 +25,14 @@ function getClientIp(req) {
   return (req.ip || req.connection?.remoteAddress || '').toString();
 }
 
+function ensureDirExists(dirPath) {
+  try {
+    fs.mkdirSync(dirPath, { recursive: true });
+  } catch (e) {
+    if (e && e.code !== 'EEXIST') console.error('Failed to ensure directory:', dirPath, e);
+  }
+}
+
 function ensureLoggedIn(req, res, next) {
   // model-side pages still enforce age gate
   if (!req.session?.ageConfirmed) return res.redirect('/age-check');
@@ -85,25 +93,6 @@ function requireLegacyDocType(docType) {
   return docType;
 }
 
-// Template slug safety
-function sanitizeSlug(input) {
-  return String(input || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9_-]/g, '')
-    .slice(0, 60);
-}
-
-function sanitizeTitle(input) {
-  return String(input || '').trim().slice(0, 120);
-}
-
-function toBool(v) {
-  const s = String(v || '').trim().toLowerCase();
-  return s === '1' || s === 'true' || s === 'yes' || s === 'on';
-}
-
 function escapeHtml(s) {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
@@ -145,26 +134,19 @@ module.exports = function docRoutes(ctx) {
 
   // Storage
   const executedPdfDir = ctx.uploadDirs.docUploadsDir;
+  ensureDirExists(executedPdfDir);
 
   // ============================================================
   // Attach extracted legal-doc routes (doc_legal.js)
   // IMPORTANT: this must be top-level, NOT inside a route.
   // ============================================================
   try {
-    // make res available to doc_legal for server-side rendering callbacks (if needed)
-    router.use((req, res, next) => {
-      ctx._res = res;
-      next();
-    });
-
     attachLegalDocRoutes(router, {
       ...ctx,
       ensureLoggedIn,
       ensureAdmin,
       renderPdfFromHtml,
-      _res: null,
     });
-
     console.log('✅ doc_legal routes attached');
   } catch (e) {
     console.error('❌ Failed to attach doc_legal routes:', e);
@@ -199,8 +181,7 @@ module.exports = function docRoutes(ctx) {
     await ensureColumn('executed_documents', `template_title TEXT`);
     await ensureColumn('executed_documents', `template_version TEXT`);
 
-    // Template library (kept here because other parts may rely on it;
-    // legal routes that manage it now live in doc_legal.js)
+    // Template library
     await dbRun(`
       CREATE TABLE IF NOT EXISTS legal_templates (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -218,7 +199,7 @@ module.exports = function docRoutes(ctx) {
     await dbRun(`CREATE INDEX IF NOT EXISTS idx_legal_templates_active ON legal_templates(active);`);
     await dbRun(`CREATE INDEX IF NOT EXISTS idx_legal_templates_required ON legal_templates(required);`);
 
-    // ✅ NEW: Scene legal snapshots (used when a scene is created/updated)
+    // Scene legal snapshots
     await dbRun(`
       CREATE TABLE IF NOT EXISTS scene_legal_snapshots (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -289,12 +270,6 @@ module.exports = function docRoutes(ctx) {
 
   /* ======================================================================
      ✅ COMPLIANCE ENGINE (badge + booking lock + scene snapshot support)
-     ----------------------------------------------------------------------
-     IMPORTANT: doc.js cannot directly "lock bookings" because bookings routes
-     live in routes/model.js. So we expose:
-       - ctx.compliance.getModelComplianceStatus(modelId)
-       - ctx.compliance.requireModelCompliant(req,res,next)
-       - ctx.compliance.captureSceneLegalSnapshot(sceneId, modelId, extra)
      ====================================================================== */
 
   function parseCsvList(s) {
@@ -332,8 +307,6 @@ module.exports = function docRoutes(ctx) {
   }
 
   async function getComplianceDocumentsByType(userId) {
-    // Note: your schema exists elsewhere; we read it safely.
-    // If table doesn't exist, this will throw; we catch in status builder.
     const docs = await dbAll(
       `SELECT id, doc_type, filename, uploaded_at
        FROM compliance_documents
@@ -357,16 +330,13 @@ module.exports = function docRoutes(ctx) {
     const out = {
       modelId,
       ok: false,
-      // top-level gates
       hasMasterRelease: false,
       hasConsentPolicy: false,
       requiredLegal: { total: 0, missing: 0, needsResign: 0, items: [] },
       requiredUploads: { required: REQUIRED_COMPLIANCE_DOC_TYPES, missing: [], present: [] },
-      // debug/info
       timestamps: { computedAt: new Date().toISOString() },
     };
 
-    // Master release
     const mr = await dbGet(
       `SELECT id, signed_at
        FROM master_releases
@@ -377,7 +347,6 @@ module.exports = function docRoutes(ctx) {
     );
     out.hasMasterRelease = !!mr;
 
-    // Consent policy
     const cp = await dbGet(
       `SELECT user_id, updated_at, created_at
        FROM consent_policies
@@ -387,7 +356,6 @@ module.exports = function docRoutes(ctx) {
     );
     out.hasConsentPolicy = !!cp;
 
-    // Required legal templates: signed + version match
     const requiredTemplates = await getRequiredLegalTemplates();
     const latestExec = await getLatestExecutedLegalByTemplate(modelId);
 
@@ -413,7 +381,6 @@ module.exports = function docRoutes(ctx) {
     out.requiredLegal.missing = reqItems.filter((x) => !x.signed).length;
     out.requiredLegal.needsResign = reqItems.filter((x) => x.needs_resign).length;
 
-    // Required uploads (optional by env)
     if (REQUIRED_COMPLIANCE_DOC_TYPES.length) {
       try {
         const { byType } = await getComplianceDocumentsByType(modelId);
@@ -427,8 +394,7 @@ module.exports = function docRoutes(ctx) {
         }
         out.requiredUploads.missing = missing;
         out.requiredUploads.present = present;
-      } catch (e) {
-        // If compliance_documents table isn't present yet, treat required uploads as missing.
+      } catch (_e) {
         out.requiredUploads.missing = [...REQUIRED_COMPLIANCE_DOC_TYPES];
         out.requiredUploads.present = [];
       }
@@ -442,7 +408,6 @@ module.exports = function docRoutes(ctx) {
   }
 
   async function captureSceneLegalSnapshot({ sceneId, modelId, extra }) {
-    // Snapshot required legal doc status at the time of scene creation.
     const status = await getModelComplianceStatus(modelId);
 
     const snapshot = {
@@ -467,12 +432,10 @@ module.exports = function docRoutes(ctx) {
     return snapshot;
   }
 
-  // Expose for other route files (model.js, scenes routes, booking routes)
   if (!ctx.compliance) ctx.compliance = {};
   ctx.compliance.getModelComplianceStatus = getModelComplianceStatus;
   ctx.compliance.captureSceneLegalSnapshot = captureSceneLegalSnapshot;
 
-  // Middleware: call this from bookings routes to lock until compliant
   ctx.compliance.requireModelCompliant = async function requireModelCompliant(req, res, next) {
     try {
       const user = req.session?.user;
@@ -517,7 +480,6 @@ module.exports = function docRoutes(ctx) {
     }
   });
 
-  // Optional admin endpoint: view latest scene snapshot for a scene
   router.get('/studio-panel/scenes/:sceneId/legal-snapshot.json', ensureAdmin, async (req, res) => {
     try {
       const sceneId = parseInt(req.params.sceneId, 10);
@@ -547,7 +509,7 @@ module.exports = function docRoutes(ctx) {
   });
 
   // ============================================================
-  // DOCS HUB (legacy + uploaded/template docs)
+  // DOCS HUB (legacy + template docs)
   // /docs
   // ============================================================
   router.get('/docs', ensureLoggedIn, async (req, res) => {
@@ -555,7 +517,6 @@ module.exports = function docRoutes(ctx) {
       const flash = consumeFlash(req);
       const userId = req.session.user.id;
 
-      // Active uploaded/template docs
       const templates = await dbAll(
         `SELECT id, slug, title, version, required, active, updated_at
          FROM legal_templates
@@ -563,7 +524,6 @@ module.exports = function docRoutes(ctx) {
          ORDER BY required DESC, id ASC`
       );
 
-      // Latest executed per template for this user
       const execRows = await dbAll(
         `SELECT template_id, template_version, signed_at
          FROM executed_documents
@@ -737,6 +697,7 @@ module.exports = function docRoutes(ctx) {
 
       const pdf = await renderPdfFromHtml({ html });
 
+      ensureDirExists(executedPdfDir);
       const filename = `executed_${docType}_${userId}_${Date.now()}_${Math.random().toString(36).slice(2)}.pdf`;
       fs.writeFileSync(path.join(executedPdfDir, filename), pdf);
 
@@ -838,7 +799,9 @@ module.exports = function docRoutes(ctx) {
       <tr><th>Email (Profile)</th><td>${escapeHtml(profile?.email || '—')}</td></tr>
       <tr><th>Location</th><td>${escapeHtml([profile?.state, profile?.country].filter(Boolean).join(', ') || '—')}</td></tr>
 
-      <tr><th>Emergency Contact</th><td>${escapeHtml(profile?.emergency_name || '—')} ${profile?.emergency_phone ? `(${escapeHtml(profile.emergency_phone)})` : ''}</td></tr>
+      <tr><th>Emergency Contact</th><td>${escapeHtml(profile?.emergency_name || '—')} ${
+      profile?.emergency_phone ? `(${escapeHtml(profile.emergency_phone)})` : ''
+    }</td></tr>
       <tr><th>Aliases</th><td>${escapeHtml(profile?.aliases || '—')}</td></tr>
       <tr><th>Age Truth Ack</th><td>${profile?.age_truth_ack ? 'Yes' : 'No / Not stated'}</td></tr>
     </table>
@@ -904,7 +867,6 @@ module.exports = function docRoutes(ctx) {
 
   function buildConsentHtml({ user, policies }) {
     const nowIso = new Date().toISOString();
-
     function yn(v) {
       return v ? 'Yes' : 'No';
     }
@@ -979,7 +941,6 @@ module.exports = function docRoutes(ctx) {
       '';
 
     const recipients = uniqEmails([user.email, profile?.email, MAIL_TO_STUDIO, extraTo]);
-
     if (!recipients.length) throw new Error('No recipients found (model email + studio archive missing).');
 
     const baseUrl = computeBaseUrl(req);

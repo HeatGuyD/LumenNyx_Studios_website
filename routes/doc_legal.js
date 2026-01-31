@@ -28,15 +28,6 @@ function toBool(v) {
   return s === '1' || s === 'true' || s === 'yes' || s === 'on';
 }
 
-function escapeHtml(s) {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
 function getClientIp(req) {
   const xff = req.headers['x-forwarded-for'];
   if (xff && typeof xff === 'string') return xff.split(',')[0].trim();
@@ -67,16 +58,59 @@ function uniqEmails(arr) {
   return out;
 }
 
+/**
+ * Normalize an auth guard that might be either:
+ *  - express middleware: (req,res,next) => {}
+ *  - factory returning middleware: () => (req,res,next) => {}
+ *
+ * We ONLY auto-call if the function declares 0 params (length === 0).
+ * That matches patterns like requireAuth() and avoids calling real middleware.
+ */
+function normalizeGuard(mwOrFactory, name) {
+  if (typeof mwOrFactory !== 'function') {
+    return function guardMissing(_req, res, _next) {
+      console.error(`Guard missing or invalid: ${name}`);
+      return res.status(500).render('error', { message: 'Server configuration error.' });
+    };
+  }
+
+  // Standard express middleware typically has (req,res,next) => length 3
+  if (mwOrFactory.length >= 3) return mwOrFactory;
+
+  // Factory-style guard: () => middleware
+  if (mwOrFactory.length === 0) {
+    try {
+      const maybe = mwOrFactory();
+      if (typeof maybe === 'function') return maybe;
+    } catch (e) {
+      console.error(`Guard factory threw for ${name}:`, e);
+      return mwOrFactory;
+    }
+  }
+
+  // Fallback: treat as middleware
+  return mwOrFactory;
+}
+
+function ensureDirExists(dirPath) {
+  try {
+    fs.mkdirSync(dirPath, { recursive: true });
+  } catch (e) {
+    if (e && e.code !== 'EEXIST') console.error('Failed to ensure directory:', dirPath, e);
+  }
+}
+
 module.exports = function attachLegalDocRoutes(router, ctx) {
   const { dbRun, dbGet, dbAll, ensureColumn } = ctx.db;
   const audit = ctx.audit;
 
   // Storage
   const executedPdfDir = ctx.uploadDirs.docUploadsDir;
+  ensureDirExists(executedPdfDir);
 
   // Guards from ctx (doc.js injects these)
-  const ensureLoggedIn = ctx.ensureLoggedIn;
-  const ensureAdmin = ctx.ensureAdmin;
+  const ensureLoggedIn = normalizeGuard(ctx.ensureLoggedIn, 'ensureLoggedIn');
+  const ensureAdmin = normalizeGuard(ctx.ensureAdmin, 'ensureAdmin');
 
   // PDF renderer from ctx
   const renderPdfFromHtml = ctx.renderPdfFromHtml;
@@ -393,7 +427,7 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
          ORDER BY required DESC, id ASC`
       );
 
-      // ✅ include id so you can link to /model/legal/executed/:id/pdf
+      // include id so you can link to /model/legal/executed/:id/pdf
       const execRows = await dbAll(
         `SELECT id, template_id, template_version, signed_at, executed_pdf_filename
          FROM executed_documents
@@ -559,9 +593,9 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
         signatureDataUrl = null;
       }
 
-      // NOTE: doc.js must pass a ctx object where ctx._res is set per-request.
+      // Render HTML via res.render callback (no ctx._res hacks)
       const html = await new Promise((resolve, reject) => {
-        ctx._res.render(
+        res.render(
           'print/legal-template',
           {
             template: tpl,
@@ -575,6 +609,8 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
       });
 
       const pdf = await renderPdfFromHtml({ html });
+
+      ensureDirExists(executedPdfDir);
 
       const filename = `executed_legal_${tpl.slug}_${userId}_${Date.now()}_${Math.random().toString(36).slice(2)}.pdf`;
       fs.writeFileSync(path.join(executedPdfDir, filename), pdf);
@@ -658,6 +694,7 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
     const { user, profile } = await getModelBundle(modelId);
     if (!user) throw new Error('Model not found.');
 
+    // IMPORTANT: keep this as a single, valid JS expression (no line-ending "||" fragments).
     const MAIL_TO_STUDIO =
       (process.env.MAIL_TO_STUDIO && String(process.env.MAIL_TO_STUDIO).trim()) ||
       (ctx.STUDIO_EMAILS && ctx.STUDIO_EMAILS.admin) ||
