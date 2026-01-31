@@ -1,3 +1,10 @@
+cd /var/www/lumennyx
+
+# backup first
+cp -a routes/doc_legal.js routes/doc_legal.js.bak.$(date +%F_%H%M%S)
+
+# overwrite with the fixed file
+cat > routes/doc_legal.js <<'EOF'
 // FILE: routes/doc_legal.js
 const crypto = require('crypto');
 const fs = require('fs');
@@ -758,3 +765,4 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
     }
   });
 };
+EOF
