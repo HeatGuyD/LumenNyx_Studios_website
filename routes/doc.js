@@ -81,7 +81,10 @@ async function renderPdfFromHtml({ html }) {
     page.setDefaultNavigationTimeout(60_000);
     page.setDefaultTimeout(60_000);
 
-    await page.setContent(html, { waitUntil: 'networkidle0' });
+    await page.setContent(html, { waitUntil: 'domcontentloaded' });
+    // give the page a brief moment to finish layout
+    await page.waitForTimeout(500);
+
     await page.emulateMediaType('screen');
 
     return await page.pdf({
@@ -150,24 +153,9 @@ module.exports = function docRoutes(ctx) {
   ensureDirExists(executedPdfDir);
 
   // ============================================================
-  // Attach extracted legal-doc routes (doc_legal.js)
+  // ✅ SCHEMA READY (prevents async migration race conditions)
   // ============================================================
-  try {
-    attachLegalDocRoutes(router, {
-      ...ctx,
-      ensureLoggedIn,
-      ensureAdmin,
-      renderPdfFromHtml,
-    });
-    console.log('✅ doc_legal routes attached');
-  } catch (e) {
-    console.error('❌ Failed to attach doc_legal routes:', e);
-  }
-
-  // -----------------------
-  // SCHEMA
-  // -----------------------
-  (async () => {
+  const schemaReady = (async () => {
     await dbRun(`
       CREATE TABLE IF NOT EXISTS executed_documents (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -185,6 +173,7 @@ module.exports = function docRoutes(ctx) {
     await dbRun(`CREATE INDEX IF NOT EXISTS idx_executed_docs_user ON executed_documents(user_id);`);
     await dbRun(`CREATE INDEX IF NOT EXISTS idx_executed_docs_type ON executed_documents(doc_type);`);
 
+    // These are required by template docs + compliance engine
     await ensureColumn('executed_documents', `doc_kind TEXT`);
     await ensureColumn('executed_documents', `template_id INTEGER`);
     await ensureColumn('executed_documents', `template_slug TEXT`);
@@ -218,7 +207,38 @@ module.exports = function docRoutes(ctx) {
     `);
     await dbRun(`CREATE INDEX IF NOT EXISTS idx_scene_legal_snapshots_scene ON scene_legal_snapshots(scene_id);`);
     await dbRun(`CREATE INDEX IF NOT EXISTS idx_scene_legal_snapshots_user ON scene_legal_snapshots(user_id);`);
-  })().catch((e) => console.error('docRoutes schema init failed:', e));
+
+    return true;
+  })().catch((e) => {
+    console.error('docRoutes schema init failed:', e);
+    // allow server to run, but routes will throw clearer errors if DB isn't ready
+    return false;
+  });
+
+  // Block route handlers until schema is ready (prevents missing-column crashes)
+  router.use(async (_req, _res, next) => {
+    try {
+      await schemaReady;
+      return next();
+    } catch (e) {
+      return next(e);
+    }
+  });
+
+  // ============================================================
+  // Attach extracted legal-doc routes (doc_legal.js)
+  // ============================================================
+  try {
+    attachLegalDocRoutes(router, {
+      ...ctx,
+      ensureLoggedIn,
+      ensureAdmin,
+      renderPdfFromHtml,
+    });
+    console.log('✅ doc_legal routes attached');
+  } catch (e) {
+    console.error('❌ Failed to attach doc_legal routes:', e);
+  }
 
   function consumeFlash(req) {
     const out = { error: req.session?.error || null, message: req.session?.message || null };
@@ -302,7 +322,7 @@ module.exports = function docRoutes(ctx) {
       `SELECT template_id, template_version, signed_at, executed_pdf_filename, document_hash
        FROM executed_documents
        WHERE user_id=? AND doc_kind='legal'
-       ORDER BY signed_at DESC`,
+       ORDER BY datetime(signed_at) DESC, id DESC`,
       [userId]
     );
     const latest = new Map();
@@ -535,7 +555,7 @@ module.exports = function docRoutes(ctx) {
         `SELECT template_id, template_version, signed_at
          FROM executed_documents
          WHERE user_id=? AND doc_kind='legal'
-         ORDER BY signed_at DESC`,
+         ORDER BY datetime(signed_at) DESC, id DESC`,
         [userId]
       );
 
@@ -1173,9 +1193,18 @@ module.exports = function docRoutes(ctx) {
     const baseUrl = computeBaseUrl(req);
 
     const map = {
-      identity: { subject: `LumenNyx Studios — Identity PDF — ${user.username}`, url: `${baseUrl}/studio-panel/models/${modelId}/identity.pdf` },
-      'master-release': { subject: `LumenNyx Studios — Master Release PDF — ${user.username}`, url: `${baseUrl}/studio-panel/models/${modelId}/master-release.pdf` },
-      consent: { subject: `LumenNyx Studios — Consent & Safety PDF — ${user.username}`, url: `${baseUrl}/studio-panel/models/${modelId}/consent.pdf` },
+      identity: {
+        subject: `LumenNyx Studios — Identity PDF — ${user.username}`,
+        url: `${baseUrl}/studio-panel/models/${modelId}/identity.pdf`,
+      },
+      'master-release': {
+        subject: `LumenNyx Studios — Master Release PDF — ${user.username}`,
+        url: `${baseUrl}/studio-panel/models/${modelId}/master-release.pdf`,
+      },
+      consent: {
+        subject: `LumenNyx Studios — Consent & Safety PDF — ${user.username}`,
+        url: `${baseUrl}/studio-panel/models/${modelId}/consent.pdf`,
+      },
     };
 
     const item = map[kind];
@@ -1383,7 +1412,7 @@ module.exports = function docRoutes(ctx) {
         `SELECT ed.*, u.username
          FROM executed_documents ed
          LEFT JOIN users u ON u.id = ed.user_id
-         ORDER BY ed.signed_at DESC
+         ORDER BY datetime(ed.signed_at) DESC, ed.id DESC
          LIMIT 250`
       );
       return res.render('admin/executed', { rows: rows || [] });

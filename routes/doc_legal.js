@@ -1,137 +1,40 @@
 // FILE: routes/doc_legal.js
-const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { sendMailOrLog } = require('../lib/mailer'); // kept for future / optional use
-
-function sha256Hex(input) {
-  const h = crypto.createHash('sha256');
-  h.update(input);
-  return h.digest('hex');
-}
-
-function sanitizeSlug(input) {
-  return String(input || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9_-]/g, '')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60);
-}
-
-function sanitizeTitle(input) {
-  return String(input || '').trim().slice(0, 120);
-}
-
-function toBool(v) {
-  const s = String(v || '').trim().toLowerCase();
-  return s === '1' || s === 'true' || s === 'yes' || s === 'on';
-}
-
-function getClientIp(req) {
-  const xff = req.headers['x-forwarded-for'];
-  if (xff && typeof xff === 'string') return xff.split(',')[0].trim();
-  return (req.ip || req.connection?.remoteAddress || '').toString();
-}
-
-function computeBaseUrl(req) {
-  const envBase = String(process.env.BASE_URL || '').trim();
-  if (envBase) return envBase.replace(/\/+$/, '');
-
-  const host = req.get('host');
-  const proto = req.protocol;
-  if (host && proto) return `${proto}://${host}`;
-
-  return 'http://localhost:3001';
-}
-
-function uniqEmails(arr) {
-  const out = [];
-  const seen = new Set();
-  for (const raw of arr) {
-    const e = String(raw || '').trim().toLowerCase();
-    if (!e) continue;
-    if (seen.has(e)) continue;
-    seen.add(e);
-    out.push(e);
-  }
-  return out;
-}
-
-/**
- * Normalize an auth guard that might be either:
- *  - express middleware: (req,res,next) => {}
- *  - factory returning middleware: () => (req,res,next) => {}
- *
- * We ONLY auto-call if the function declares 0 params (length === 0).
- */
-function normalizeGuard(mwOrFactory, name) {
-  if (typeof mwOrFactory !== 'function') {
-    return function guardMissing(_req, res, _next) {
-      console.error(`Guard missing or invalid: ${name}`);
-      return res.status(500).render('error', { message: 'Server configuration error.' });
-    };
-  }
-
-  // Standard express middleware typically has (req,res,next) => length 3
-  if (mwOrFactory.length >= 3) return mwOrFactory;
-
-  // Factory-style guard: () => middleware
-  if (mwOrFactory.length === 0) {
-    try {
-      const maybe = mwOrFactory();
-      if (typeof maybe === 'function') return maybe;
-    } catch (e) {
-      console.error(`Guard factory threw for ${name}:`, e);
-      // fall through
-    }
-  }
-
-  // Fallback: treat as middleware
-  return mwOrFactory;
-}
-
-function ensureDirExists(dirPath) {
-  try {
-    fs.mkdirSync(dirPath, { recursive: true });
-  } catch (e) {
-    if (e && e.code !== 'EEXIST') console.error('Failed to ensure directory:', dirPath, e);
-  }
-}
+const crypto = require('crypto');
 
 module.exports = function attachLegalDocRoutes(router, ctx) {
-  if (!router) throw new Error('attachLegalDocRoutes: router missing');
-  if (!ctx || !ctx.db) throw new Error('attachLegalDocRoutes: ctx/db missing');
-
   const { dbRun, dbGet, dbAll, ensureColumn } = ctx.db;
   const audit = ctx.audit;
 
-  // Storage
-  const executedPdfDir = ctx.uploadDirs?.docUploadsDir;
-  if (!executedPdfDir) throw new Error('attachLegalDocRoutes: ctx.uploadDirs.docUploadsDir missing');
-  ensureDirExists(executedPdfDir);
-
-  // Guards from ctx (doc.js injects these)
-  const ensureLoggedIn = normalizeGuard(ctx.ensureLoggedIn, 'ensureLoggedIn');
-  const ensureAdmin = normalizeGuard(ctx.ensureAdmin, 'ensureAdmin');
-
-  // PDF renderer from ctx
+  const ensureLoggedIn = ctx.ensureLoggedIn;
+  const ensureAdmin = ctx.ensureAdmin;
   const renderPdfFromHtml = ctx.renderPdfFromHtml;
 
-  function ensurePdfRenderer(req, res) {
-    if (typeof renderPdfFromHtml !== 'function') {
-      console.error('renderPdfFromHtml missing from ctx; cannot generate PDFs');
-      if (req && req.session) req.session.error = 'PDF rendering is not available on this server.';
-      res.status(500);
-      return res.render('error', { message: 'PDF rendering is not available on this server.' });
-    }
-    return null;
+  const executedPdfDir = ctx.uploadDirs.docUploadsDir;
+  const signatureUploadsDir = ctx.uploadDirs.signatureUploadsDir;
+
+  function escapeHtml(s) {
+    return String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
-  async function getLatestSignature(userId) {
-    return dbGet(`SELECT * FROM signatures WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, [userId]);
+  function getClientIp(req) {
+    const xff = req.headers['x-forwarded-for'];
+    if (xff && typeof xff === 'string') return xff.split(',')[0].trim();
+    return (req.ip || req.connection?.remoteAddress || '').toString();
+  }
+
+  function ensureDirExists(dirPath) {
+    try {
+      fs.mkdirSync(dirPath, { recursive: true });
+    } catch (e) {
+      if (e && e.code !== 'EEXIST') console.error('Failed to ensure directory:', dirPath, e);
+    }
   }
 
   function consumeFlash(req) {
@@ -143,288 +46,266 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
     return out;
   }
 
-  async function insertExecutedDoc({
-    userId,
-    docType,
-    docKind,
-    payload,
-    signatureId,
-    ip,
-    ua,
-    executedPdfFilename,
-    templateId,
-    templateSlug,
-    templateTitle,
-    templateVersion,
-  }) {
-    const payloadJson = JSON.stringify(payload);
-    const docHash = sha256Hex(payloadJson);
+  function safeJsonParse(str, fallback) {
+    try {
+      const v = JSON.parse(str);
+      return v === undefined || v === null ? fallback : v;
+    } catch (_e) {
+      return fallback;
+    }
+  }
 
+  function normalizeSlug(slug) {
+    return String(slug || '').trim().toLowerCase();
+  }
+
+  function isTruthy(v) {
+    return v === true || v === 'true' || v === 'on' || v === '1' || v === 1;
+  }
+
+  function cleanVal(v) {
+    const s = String(v ?? '').trim();
+    return s.length ? s : null;
+  }
+
+  function safeFilenamePart(s) {
+    return String(s || '').replace(/[^a-z0-9_.-]/gi, '_');
+  }
+
+  async function getLatestSignature(userId) {
+    return dbGet(
+      `SELECT id, method, typed_name, typed_style, signature_png, initials_png, created_at
+       FROM signatures
+       WHERE user_id=?
+       ORDER BY datetime(created_at) DESC, id DESC
+       LIMIT 1`,
+      [userId]
+    );
+  }
+
+  async function getTemplateBySlug(slug) {
+    return dbGet(
+      `SELECT id, slug, title, body_html, version, required, active, updated_at, created_at, fields_json
+       FROM legal_templates
+       WHERE lower(slug)=lower(?) AND active=1
+       LIMIT 1`,
+      [slug]
+    );
+  }
+
+  async function getLatestExecutedForTemplate(userId, templateId) {
+    return dbGet(
+      `SELECT id, template_id, template_version, signed_at, executed_pdf_filename, document_hash
+       FROM executed_documents
+       WHERE user_id=? AND doc_kind='legal' AND template_id=?
+       ORDER BY datetime(signed_at) DESC, id DESC
+       LIMIT 1`,
+      [userId, templateId]
+    );
+  }
+
+  async function insertExecutedLegalDoc({ userId, template, payload, signatureId, ip, ua, executedPdfFilename, documentHash }) {
     await dbRun(
       `INSERT INTO executed_documents
        (user_id, doc_type, doc_kind, payload_json, signature_id, ip_address, user_agent, document_hash, executed_pdf_filename,
         template_id, template_slug, template_title, template_version)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, 'legal', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         userId,
-        docType,
-        docKind || null,
-        payloadJson,
+        'legal_template',
+        JSON.stringify(payload),
         signatureId || null,
         ip || null,
         ua || null,
-        docHash,
+        documentHash || null,
         executedPdfFilename || null,
-        templateId || null,
-        templateSlug || null,
-        templateTitle || null,
-        templateVersion || null,
+        template.id,
+        template.slug,
+        template.title,
+        template.version,
       ]
     );
 
-    return docHash;
+    const row = await dbGet(`SELECT last_insert_rowid() AS id`, []);
+    return row?.id || null;
   }
 
-  // -----------------------
-  // SCHEMA (legal templates)
-  // -----------------------
+  // IMPORTANT: decouple "signed" from "pdf rendered"
+  async function updateExecutedPdf(executedId, executedPdfFilename, documentHash) {
+    if (!executedId) return;
+    await dbRun(
+      `UPDATE executed_documents
+       SET executed_pdf_filename = COALESCE(executed_pdf_filename, ?),
+           document_hash = COALESCE(document_hash, ?)
+       WHERE id = ?`,
+      [executedPdfFilename || null, documentHash || null, executedId]
+    );
+  }
+
+  // -----------------------------
+  // Field schemas (DB or defaults)
+  // -----------------------------
+  function defaultFieldsForSlug(slug) {
+    const s = normalizeSlug(slug);
+
+    // Common identity block used across docs
+    const identity = [
+      { key: 'performer_legal_name', label: 'Performer Legal Name', type: 'text', required: true, max: 120 },
+      { key: 'performer_stage_name', label: 'Stage Name / Alias', type: 'text', required: false, max: 120 },
+      { key: 'performer_dob', label: 'Date of Birth', type: 'date', required: true },
+      { key: 'performer_email', label: 'Email', type: 'email', required: true, max: 180 },
+      { key: 'performer_phone', label: 'Phone', type: 'text', required: false, max: 40 },
+    ];
+
+    const address = [
+      { key: 'address_line1', label: 'Address (Street)', type: 'text', required: true, max: 180 },
+      { key: 'address_line2', label: 'Address (Apt/Unit)', type: 'text', required: false, max: 60 },
+      { key: 'address_city', label: 'City', type: 'text', required: true, max: 80 },
+      { key: 'address_state', label: 'State', type: 'text', required: true, max: 40 },
+      { key: 'address_zip', label: 'ZIP', type: 'text', required: true, max: 20 },
+      { key: 'address_country', label: 'Country', type: 'text', required: false, max: 60 },
+    ];
+
+    if (s === '2257-compliance') {
+      return [
+        ...identity,
+        ...address,
+        {
+          key: 'id_type',
+          label: 'Government ID Type',
+          type: 'select',
+          required: true,
+          options: ['Driver License', 'State ID', 'Passport', 'Other'],
+        },
+        { key: 'id_issuer', label: 'Issuing Authority / State / Country', type: 'text', required: true, max: 80 },
+        { key: 'id_number', label: 'ID Number', type: 'text', required: true, max: 80 },
+        { key: 'id_issue_date', label: 'ID Issue Date', type: 'date', required: false },
+        { key: 'id_expiration_date', label: 'ID Expiration Date', type: 'date', required: false },
+        { key: 'ack_age_18', label: 'I confirm I am 18+ and the DOB entered is truthful', type: 'checkbox', required: true },
+      ];
+    }
+
+    if (s.includes('consent') || s.includes('limits')) {
+      return [
+        { key: 'shoot_date', label: 'Shoot Date', type: 'date', required: false },
+        { key: 'shoot_location', label: 'Shoot Location', type: 'text', required: false, max: 140 },
+        { key: 'scene_partners', label: 'Scene Partner(s)', type: 'text', required: false, max: 180 },
+        ...identity,
+        { key: 'allows_kissing', label: 'Allows Kissing', type: 'select', required: true, options: ['Yes', 'No', 'Conditional'] },
+        { key: 'allows_nudity_topless', label: 'Allows Topless Nudity', type: 'select', required: true, options: ['Yes', 'No', 'Conditional'] },
+        { key: 'allows_nudity_full', label: 'Allows Full Nudity', type: 'select', required: true, options: ['Yes', 'No', 'Conditional'] },
+        { key: 'allows_oral_giving', label: 'Allows Oral (Giving)', type: 'select', required: true, options: ['Yes', 'No', 'Conditional'] },
+        { key: 'allows_oral_receiving', label: 'Allows Oral (Receiving)', type: 'select', required: true, options: ['Yes', 'No', 'Conditional'] },
+        { key: 'allows_vaginal', label: 'Allows Vaginal Intercourse', type: 'select', required: true, options: ['Yes', 'No', 'Conditional'] },
+        { key: 'allows_anal', label: 'Allows Anal Intercourse', type: 'select', required: true, options: ['Yes', 'No', 'Conditional'] },
+        { key: 'allows_rough', label: 'Allows Rough Pace / Dynamics', type: 'select', required: true, options: ['Yes', 'No', 'Conditional'] },
+        { key: 'allows_spanking', label: 'Allows Spanking', type: 'select', required: true, options: ['Yes', 'No', 'Conditional'] },
+        { key: 'allows_hair_pulling', label: 'Allows Hair Pulling', type: 'select', required: true, options: ['Yes', 'No', 'Conditional'] },
+        { key: 'allows_choking', label: 'Allows Choking / Breath Play', type: 'select', required: true, options: ['Yes', 'No', 'Conditional'] },
+        { key: 'hard_limits', label: 'Hard Limits (No-Go)', type: 'textarea', required: false, max: 2000 },
+        { key: 'soft_limits', label: 'Soft Limits / Conditions', type: 'textarea', required: false, max: 2000 },
+        { key: 'safeword', label: 'Safeword', type: 'text', required: true, max: 60 },
+        { key: 'nonverbal_signal', label: 'Non-Verbal Stop Signal', type: 'text', required: false, max: 120 },
+        { key: 'notes', label: 'Special Notes / Conditions', type: 'textarea', required: false, max: 3000 },
+        { key: 'ack_understood', label: 'I understand I can stop at any time and consent can be withdrawn', type: 'checkbox', required: true },
+      ];
+    }
+
+    if (s.includes('sti') || s.includes('test')) {
+      return [
+        { key: 'shoot_date', label: 'Shoot Date', type: 'date', required: false },
+        { key: 'shoot_location', label: 'Shoot Location', type: 'text', required: false, max: 140 },
+        ...identity,
+        { key: 'testing_facility', label: 'Testing Facility / Provider', type: 'text', required: true, max: 140 },
+        { key: 'specimen_date', label: 'Specimen Collection Date', type: 'date', required: true },
+        { key: 'ack_truth', label: 'I affirm these testing details are truthful', type: 'checkbox', required: true },
+      ];
+    }
+
+    // Generic “signature + identity” for everything else
+    return [...identity, { key: 'ack_read', label: 'I have read and understand this document', type: 'checkbox', required: true }];
+  }
+
+  function parseFieldsJson(fieldsJson, slug) {
+    if (!fieldsJson) return defaultFieldsForSlug(slug);
+    const v = safeJsonParse(fieldsJson, null);
+    if (!v) return defaultFieldsForSlug(slug);
+    if (Array.isArray(v)) return v;
+    if (Array.isArray(v.fields)) return v.fields;
+    return defaultFieldsForSlug(slug);
+  }
+
+  function validateFields(schema, body) {
+    const errors = [];
+    const values = {};
+
+    for (const f of schema) {
+      const key = String(f.key || '').trim();
+      if (!key) continue;
+
+      const raw = body[key];
+
+      if (f.type === 'checkbox') {
+        const checked = isTruthy(raw);
+        values[key] = checked;
+        if (f.required && !checked) errors.push(`${f.label || key} is required.`);
+        continue;
+      }
+
+      const v = cleanVal(raw);
+      values[key] = v;
+
+      if (f.required && !v) {
+        errors.push(`${f.label || key} is required.`);
+        continue;
+      }
+
+      if (v && f.max && String(v).length > Number(f.max)) {
+        errors.push(`${f.label || key} is too long.`);
+      }
+
+      if (v && f.type === 'email') {
+        const s = String(v);
+        if (!s.includes('@') || !s.includes('.')) errors.push(`${f.label || key} must be a valid email.`);
+      }
+    }
+
+    return { errors, values };
+  }
+
+  async function resolveSignatureDataUrl(signatureRow) {
+    if (!signatureRow) return null;
+
+    const sp = String(signatureRow.signature_png || '');
+    if (!sp) return null;
+
+    // If stored as data URL, use directly
+    if (sp.startsWith('data:image')) return sp;
+
+    // Otherwise treat as filename under signatureUploadsDir
+    try {
+      const sigPath = path.join(signatureUploadsDir, path.basename(sp));
+      const buf = fs.readFileSync(sigPath);
+      return `data:image/png;base64,${buf.toString('base64')}`;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  // ------------------------------------------------------------
+  // MIGRATION: add fields_json column (safe)
+  // ------------------------------------------------------------
   (async () => {
-    // Defensive: ensure executed_documents exists (doc.js already creates it)
-    await dbRun(`
-      CREATE TABLE IF NOT EXISTS executed_documents (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        doc_type TEXT NOT NULL,
-        payload_json TEXT NOT NULL,
-        signed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        signature_id INTEGER,
-        ip_address TEXT,
-        user_agent TEXT,
-        document_hash TEXT,
-        executed_pdf_filename TEXT
-      )
-    `);
-    await dbRun(`CREATE INDEX IF NOT EXISTS idx_executed_docs_user ON executed_documents(user_id);`);
-    await dbRun(`CREATE INDEX IF NOT EXISTS idx_executed_docs_type ON executed_documents(doc_type);`);
-
-    await ensureColumn('executed_documents', `doc_kind TEXT`);
-    await ensureColumn('executed_documents', `template_id INTEGER`);
-    await ensureColumn('executed_documents', `template_slug TEXT`);
-    await ensureColumn('executed_documents', `template_title TEXT`);
-    await ensureColumn('executed_documents', `template_version TEXT`);
-
-    await dbRun(`
-      CREATE TABLE IF NOT EXISTS legal_templates (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        slug TEXT NOT NULL UNIQUE,
-        title TEXT NOT NULL,
-        body_html TEXT NOT NULL,
-        version TEXT NOT NULL DEFAULT 'v1',
-        required INTEGER DEFAULT 1,
-        active INTEGER DEFAULT 1,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await dbRun(`CREATE INDEX IF NOT EXISTS idx_legal_templates_active ON legal_templates(active);`);
-    await dbRun(`CREATE INDEX IF NOT EXISTS idx_legal_templates_required ON legal_templates(required);`);
-  })().catch((e) => console.error('doc_legal schema init failed:', e));
+    try {
+      await ensureColumn('legal_templates', `fields_json TEXT`);
+    } catch (e) {
+      console.error('doc_legal migration failed:', e);
+    }
+  })();
 
   // ============================================================
-  // ✅ MODEL: VIEW EXECUTED LEGAL PDF (MODEL-ONLY, OWN-DOC ONLY)
-  // ============================================================
-  router.get('/model/legal/executed/:id/pdf', ensureLoggedIn, async (req, res) => {
-    try {
-      if (req.session?.user?.role !== 'model') {
-        return res.status(403).render('error', { message: 'Access denied.' });
-      }
-
-      const userId = req.session.user.id;
-      const id = parseInt(req.params.id, 10);
-      if (!id) return res.status(400).render('error', { message: 'Invalid document id.' });
-
-      const row = await dbGet(
-        `SELECT id, user_id, doc_kind, executed_pdf_filename
-         FROM executed_documents
-         WHERE id=? AND doc_kind='legal'
-         LIMIT 1`,
-        [id]
-      );
-
-      if (!row || Number(row.user_id) !== Number(userId)) {
-        return res.status(404).render('error', { message: 'Document not found.' });
-      }
-      if (!row.executed_pdf_filename) {
-        return res.status(404).render('error', { message: 'PDF not available.' });
-      }
-
-      const fp = path.join(executedPdfDir, path.basename(row.executed_pdf_filename));
-      if (!fs.existsSync(fp)) {
-        return res.status(404).render('error', { message: 'PDF file missing on server.' });
-      }
-
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `inline; filename="${path.basename(row.executed_pdf_filename)}"`);
-      return res.sendFile(fp);
-    } catch (e) {
-      console.error('Model executed legal PDF error:', e);
-      return res.status(500).render('error', { message: 'Could not load PDF.' });
-    }
-  });
-
-  // ============================================================
-  // ADMIN: LEGAL TEMPLATE LIBRARY
-  // ============================================================
-  router.get('/studio-panel/legal-templates', ensureAdmin, async (req, res) => {
-    try {
-      const flash = consumeFlash(req);
-      const rows = await dbAll(
-        `SELECT id, slug, title, version, required, active, created_at, updated_at
-         FROM legal_templates
-         ORDER BY active DESC, required DESC, id DESC`
-      );
-      return res.render('admin/legal-templates', {
-        staff: req.session.user,
-        templates: rows || [],
-        ...flash,
-      });
-    } catch (e) {
-      console.error('Legal templates list error:', e);
-      return res.status(500).render('error', { message: 'Could not load legal templates.' });
-    }
-  });
-
-  router.get('/studio-panel/legal-templates/new', ensureAdmin, async (req, res) => {
-    const flash = consumeFlash(req);
-    return res.render('admin/legal-template-edit', {
-      staff: req.session.user,
-      template: null,
-      ...flash,
-    });
-  });
-
-  router.post('/studio-panel/legal-templates/new', ensureAdmin, async (req, res) => {
-    try {
-      const title = sanitizeTitle(req.body.title);
-      const slug = sanitizeSlug(req.body.slug || title);
-      const version = String(req.body.version || 'v1').trim().slice(0, 20) || 'v1';
-      const required = toBool(req.body.required) ? 1 : 0;
-      const active = toBool(req.body.active) ? 1 : 0;
-      const bodyHtml = String(req.body.body_html || '').trim();
-
-      if (!title) {
-        req.session.error = 'Title is required.';
-        return res.redirect('/studio-panel/legal-templates/new');
-      }
-      if (!slug) {
-        req.session.error = 'Slug is required.';
-        return res.redirect('/studio-panel/legal-templates/new');
-      }
-      if (!bodyHtml || bodyHtml.length < 40) {
-        req.session.error = 'Body HTML is required (at least ~40 chars).';
-        return res.redirect('/studio-panel/legal-templates/new');
-      }
-
-      await dbRun(
-        `INSERT INTO legal_templates (slug, title, body_html, version, required, active, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
-        [slug, title, bodyHtml, version, required, active]
-      );
-
-      try {
-        await audit?.log?.(req, {
-          action: 'legal_template_created',
-          entityType: 'legal_template',
-          entityId: null,
-          details: { slug, title, version, required, active },
-        });
-      } catch (_) {}
-
-      req.session.message = 'Legal template created.';
-      return res.redirect('/studio-panel/legal-templates');
-    } catch (e) {
-      console.error('Legal template create error:', e);
-      req.session.error = e.message || 'Could not create template.';
-      return res.redirect('/studio-panel/legal-templates/new');
-    }
-  });
-
-  router.get('/studio-panel/legal-templates/:id', ensureAdmin, async (req, res) => {
-    try {
-      const flash = consumeFlash(req);
-      const id = parseInt(req.params.id, 10);
-      if (!id) return res.status(400).render('error', { message: 'Invalid id.' });
-
-      const row = await dbGet(`SELECT * FROM legal_templates WHERE id=? LIMIT 1`, [id]);
-      if (!row) return res.status(404).render('error', { message: 'Template not found.' });
-
-      return res.render('admin/legal-template-edit', {
-        staff: req.session.user,
-        template: row,
-        ...flash,
-      });
-    } catch (e) {
-      console.error('Legal template edit view error:', e);
-      return res.status(500).render('error', { message: 'Could not load template.' });
-    }
-  });
-
-  router.post('/studio-panel/legal-templates/:id', ensureAdmin, async (req, res) => {
-    try {
-      const id = parseInt(req.params.id, 10);
-      if (!id) {
-        req.session.error = 'Invalid id.';
-        return res.redirect('/studio-panel/legal-templates');
-      }
-
-      const title = sanitizeTitle(req.body.title);
-      const slug = sanitizeSlug(req.body.slug || title);
-      const version = String(req.body.version || 'v1').trim().slice(0, 20) || 'v1';
-      const required = toBool(req.body.required) ? 1 : 0;
-      const active = toBool(req.body.active) ? 1 : 0;
-      const bodyHtml = String(req.body.body_html || '').trim();
-
-      if (!title) {
-        req.session.error = 'Title is required.';
-        return res.redirect(`/studio-panel/legal-templates/${id}`);
-      }
-      if (!slug) {
-        req.session.error = 'Slug is required.';
-        return res.redirect(`/studio-panel/legal-templates/${id}`);
-      }
-      if (!bodyHtml || bodyHtml.length < 40) {
-        req.session.error = 'Body HTML is required (at least ~40 chars).';
-        return res.redirect(`/studio-panel/legal-templates/${id}`);
-      }
-
-      await dbRun(
-        `UPDATE legal_templates
-         SET slug=?, title=?, body_html=?, version=?, required=?, active=?, updated_at=datetime('now')
-         WHERE id=?`,
-        [slug, title, bodyHtml, version, required, active, id]
-      );
-
-      try {
-        await audit?.log?.(req, {
-          action: 'legal_template_updated',
-          entityType: 'legal_template',
-          entityId: id,
-          details: { slug, title, version, required, active },
-        });
-      } catch (_) {}
-
-      req.session.message = 'Legal template saved.';
-      return res.redirect('/studio-panel/legal-templates');
-    } catch (e) {
-      console.error('Legal template update error:', e);
-      req.session.error = e.message || 'Could not update template.';
-      return res.redirect(`/studio-panel/legal-templates/${req.params.id}`);
-    }
-  });
-
-  // ============================================================
-  // MODEL: LEGAL SIGNING FLOW
+  // MODEL: Legal index
+  // GET /model/legal
   // ============================================================
   router.get('/model/legal', ensureLoggedIn, async (req, res) => {
     try {
@@ -443,7 +324,7 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
       );
 
       const execRows = await dbAll(
-        `SELECT id, template_id, template_version, signed_at, executed_pdf_filename
+        `SELECT id, template_id, template_version, signed_at
          FROM executed_documents
          WHERE user_id=? AND doc_kind='legal'
          ORDER BY datetime(signed_at) DESC, id DESC`,
@@ -468,8 +349,8 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
         };
       });
 
-      const requiredMissing = items.filter((x) => Number(x.required) === 1 && !x.signed).length;
-      const requiredNeedsResign = items.filter((x) => Number(x.required) === 1 && x.needs_resign).length;
+      const requiredMissing = items.filter((x) => x.required === 1 && !x.signed).length;
+      const requiredNeedsResign = items.filter((x) => x.required === 1 && x.needs_resign).length;
 
       return res.render('model-legal-index', {
         currentUser: req.session.user,
@@ -480,54 +361,76 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
       });
     } catch (e) {
       console.error('Model legal index error:', e);
-      return res.status(500).render('error', { message: 'Could not load legal documents.' });
+      const flash = consumeFlash(req);
+      return res.render('model-legal-index', {
+        currentUser: req.session?.user || null,
+        templates: [],
+        requiredMissing: 0,
+        requiredNeedsResign: 0,
+        error: flash.error || 'Could not load legal documents.',
+        message: flash.message || null,
+      });
     }
   });
 
+  // ============================================================
+  // MODEL: View + Fill + Sign template
+  // GET /model/legal/:slug
+  // POST /model/legal/:slug
+  // ============================================================
   router.get('/model/legal/:slug', ensureLoggedIn, async (req, res) => {
     try {
       if (req.session?.user?.role !== 'model') {
         return res.status(403).render('error', { message: 'Access denied.' });
       }
 
+      const slug = normalizeSlug(req.params.slug);
       const userId = req.session.user.id;
-      const slug = sanitizeSlug(req.params.slug);
-      if (!slug) return res.status(400).render('error', { message: 'Invalid document.' });
-
       const flash = consumeFlash(req);
 
-      const tpl = await dbGet(
-        `SELECT id, slug, title, body_html, version, required, active, updated_at
-         FROM legal_templates
-         WHERE slug=? AND active=1
-         LIMIT 1`,
-        [slug]
-      );
-      if (!tpl) return res.status(404).render('error', { message: 'Document not found.' });
+      const template = await getTemplateBySlug(slug);
+      if (!template) return res.status(404).render('error', { message: 'Document not found.' });
 
-      const sig = await getLatestSignature(userId);
+      const signature = await getLatestSignature(userId);
+      const signatureDataUrl = await resolveSignatureDataUrl(signature);
 
-      const existing = await dbGet(
-        `SELECT id, template_version, signed_at
-         FROM executed_documents
-         WHERE user_id=? AND doc_kind='legal' AND template_id=?
-         ORDER BY datetime(signed_at) DESC, id DESC
-         LIMIT 1`,
-        [userId, tpl.id]
-      );
+      const latestExec = await getLatestExecutedForTemplate(userId, template.id);
+      const alreadySigned = !!latestExec && String(latestExec.template_version || '') === String(template.version || '');
+      const needsResign = !!latestExec && String(latestExec.template_version || '') !== String(template.version || '');
 
-      const needsResign = existing && String(existing.template_version || '') !== String(tpl.version || '');
+      const schema = parseFieldsJson(template.fields_json, template.slug);
 
-      return res.render('model-legal-sign', {
+      // Prefill (best effort) from model_profiles + users
+      const user = await dbGet(`SELECT id, username, email FROM users WHERE id=? LIMIT 1`, [userId]);
+      const profile = await dbGet(`SELECT * FROM model_profiles WHERE user_id=? LIMIT 1`, [userId]);
+
+      const prefill = {
+        performer_legal_name: profile?.legal_name || profile?.preferred_name || null,
+        performer_stage_name: profile?.preferred_name || null,
+        performer_dob: profile?.date_of_birth || null,
+        performer_email: profile?.email || user?.email || null,
+        performer_phone: profile?.phone || null,
+        address_state: profile?.state || null,
+        address_country: profile?.country || null,
+      };
+
+      return res.render('model-legal-fill', {
         currentUser: req.session.user,
-        template: tpl,
-        signature: sig || null,
-        alreadySigned: !!existing && !needsResign,
-        needsResign: !!needsResign,
+        template,
+        schema,
+        prefill,
+        values: {},
+
+        signature: signature ? { ...signature, signature_data_url: signatureDataUrl } : null,
+
+        alreadySigned,
+        needsResign,
+        latestExecId: latestExec?.id || null,
+
         ...flash,
       });
     } catch (e) {
-      console.error('Model legal sign view error:', e);
+      console.error('Model legal view error:', e);
       return res.status(500).render('error', { message: 'Could not load document.' });
     }
   });
@@ -538,57 +441,85 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
         return res.status(403).render('error', { message: 'Access denied.' });
       }
 
-      // Ensure PDF renderer exists before doing work
-      const bad = ensurePdfRenderer(req, res);
-      if (bad) return;
-
+      const slug = normalizeSlug(req.params.slug);
       const userId = req.session.user.id;
-      const slug = sanitizeSlug(req.params.slug);
-      if (!slug) {
-        req.session.error = 'Invalid document.';
-        return res.redirect('/model/legal');
-      }
 
-      const tpl = await dbGet(
-        `SELECT id, slug, title, body_html, version, required, active, updated_at
-         FROM legal_templates
-         WHERE slug=? AND active=1
-         LIMIT 1`,
-        [slug]
-      );
-      if (!tpl) {
+      const template = await getTemplateBySlug(slug);
+      if (!template) {
         req.session.error = 'Document not found.';
         return res.redirect('/model/legal');
       }
 
-      const sig = await getLatestSignature(userId);
-      if (!sig) {
-        req.session.error = 'Please complete your signature first (Signature Setup).';
-        return res.redirect(`/model/legal/${slug}`);
+      const schema = parseFieldsJson(template.fields_json, template.slug);
+      const { errors, values } = validateFields(schema, req.body || {});
+
+      // Must agree to sign
+      if (!isTruthy(req.body.agree_to_sign)) {
+        errors.push('You must check the agreement box to sign.');
       }
 
-      const agree = req.body.agree === 'on';
-      if (!agree) {
-        req.session.error = 'You must check “I agree” to sign this document.';
-        return res.redirect(`/model/legal/${slug}`);
+      // Signature captured at signing time (do NOT rely on prior saved signature)
+      const signatureDataUrl = String(req.body.signature_data_url || '').trim();
+      const typedName = String(req.body.typed_name || '').trim();
+
+      if (!typedName) errors.push('Printed name is required.');
+      if (!signatureDataUrl.startsWith('data:image')) {
+        errors.push('Signature is missing. Please draw your signature until it appears.');
       }
 
+      if (errors.length) {
+        const signature = await getLatestSignature(userId);
+        const signatureOnFile = signature ? await resolveSignatureDataUrl(signature) : null;
+
+        const user = await dbGet(`SELECT id, username, email FROM users WHERE id=? LIMIT 1`, [userId]);
+        const profile = await dbGet(`SELECT * FROM model_profiles WHERE user_id=? LIMIT 1`, [userId]);
+
+        const prefill = {
+          performer_legal_name: profile?.legal_name || profile?.preferred_name || null,
+          performer_stage_name: profile?.preferred_name || null,
+          performer_dob: profile?.date_of_birth || null,
+          performer_email: profile?.email || user?.email || null,
+          performer_phone: profile?.phone || null,
+          address_state: profile?.state || null,
+          address_country: profile?.country || null,
+        };
+
+        return res.render('model-legal-fill', {
+          currentUser: req.session.user,
+          template,
+          schema,
+          prefill,
+          values: values || {},
+
+          signature: signature ? { ...signature, signature_data_url: signatureOnFile } : null,
+
+          alreadySigned: false,
+          needsResign: false,
+          latestExecId: null,
+
+          error: errors.join(' '),
+          message: null,
+        });
+      }
+
+      // Create payload stored to executed_documents
       const ip = getClientIp(req);
       const ua = req.headers['user-agent'] || '';
 
       const payload = {
-        kind: 'legal_template',
+        kind: 'legal_template_execution',
         template: {
-          id: tpl.id,
-          slug: tpl.slug,
-          title: tpl.title,
-          version: tpl.version,
-          updated_at: tpl.updated_at,
+          id: template.id,
+          slug: template.slug,
+          title: template.title,
+          version: template.version,
         },
         signer: {
           userId,
-          username: req.session.user.username || null,
+          username: req.session.user.username,
+          printed_name: typedName,
         },
+        fields: values,
         consent: {
           agreed: true,
           agreedAtIso: new Date().toISOString(),
@@ -596,181 +527,132 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
         audit: { ip, ua },
       };
 
-      // signature image data-url
-      let signatureDataUrl = null;
-      try {
-        const sp = String(sig.signature_png || '');
-        if (sp.startsWith('data:image')) {
-          signatureDataUrl = sp;
-        } else {
-          const sigPath = path.join(ctx.uploadDirs.signatureUploadsDir, path.basename(sig.signature_png));
-          const buf = fs.readFileSync(sigPath);
-          signatureDataUrl = `data:image/png;base64,${buf.toString('base64')}`;
-        }
-      } catch (_e) {
-        signatureDataUrl = null;
-      }
+      // Use signature captured now (not from signatures table) for PDF
+      const signatureForPdf = {
+        full_name: typedName,
+        typed_name: typedName,
+        signature_data_url: signatureDataUrl,
+      };
 
-      const html = await new Promise((resolve, reject) => {
-        res.render(
-          'print/legal-template',
-          {
-            template: tpl,
-            payload,
-            signature: { ...sig, signature_data_url: signatureDataUrl },
-            studioEmails: ctx.STUDIO_EMAILS,
-            audit: { ip, ua, signedAtIso: payload.consent.agreedAtIso },
-          },
-          (err, out) => (err ? reject(err) : resolve(out))
-        );
-      });
+      // Hash up-front and INSERT FIRST (so signing is never blocked by PDF generation)
+      const documentHash = crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 
-      const pdf = await renderPdfFromHtml({ html });
-
-      ensureDirExists(executedPdfDir);
-
-      const filename = `executed_legal_${tpl.slug}_${userId}_${Date.now()}_${Math.random().toString(36).slice(2)}.pdf`;
-      fs.writeFileSync(path.join(executedPdfDir, filename), pdf);
-
-      const hash = await insertExecutedDoc({
+      const executedId = await insertExecutedLegalDoc({
         userId,
-        docType: tpl.slug,
-        docKind: 'legal',
+        template,
         payload,
-        signatureId: sig.id,
+        signatureId: null,
         ip,
         ua,
-        executedPdfFilename: filename,
-        templateId: tpl.id,
-        templateSlug: tpl.slug,
-        templateTitle: tpl.title,
-        templateVersion: tpl.version,
+        executedPdfFilename: null, // updated later if pdf renders
+        documentHash,
       });
+
+      // Best-effort PDF generation (never block signing)
+      let pdfFilename = null;
+      try {
+        const html = await new Promise((resolve, reject) => {
+          res.render(
+            'print/legal-template',
+            {
+              template,
+              payload,
+              signature: signatureForPdf,
+              audit: {
+                ip,
+                ua,
+                signedAtIso: new Date().toISOString(),
+              },
+              studioEmails: ctx.STUDIO_EMAILS,
+            },
+            (err, out) => (err ? reject(err) : resolve(out))
+          );
+        });
+
+        const pdf = await renderPdfFromHtml({ html });
+
+        ensureDirExists(executedPdfDir);
+
+        pdfFilename = `executed_legal_${safeFilenamePart(template.slug)}_${userId}_${Date.now()}_${Math.random()
+          .toString(36)
+          .slice(2)}.pdf`;
+
+        fs.writeFileSync(path.join(executedPdfDir, pdfFilename), pdf);
+
+        await updateExecutedPdf(executedId, pdfFilename, documentHash);
+      } catch (pdfErr) {
+        console.error('Legal PDF generation failed (non-blocking):', pdfErr);
+      }
 
       try {
         await audit?.log?.(req, {
-          action: 'legal_doc_signed',
-          entityType: 'legal_template',
-          entityId: tpl.id,
-          details: { slug: tpl.slug, version: tpl.version, executedPdf: filename, hash },
+          action: 'executed_legal_template_signed',
+          entityType: 'user',
+          entityId: userId,
+          details: {
+            templateId: template.id,
+            slug: template.slug,
+            executedId,
+            executedPdf: pdfFilename || null,
+            documentHash,
+            pdfGenerated: !!pdfFilename,
+          },
         });
       } catch (_) {}
 
-      req.session.message = 'Signed. Your executed PDF has been generated.';
+      req.session.message = pdfFilename
+        ? 'Saved. Your executed PDF has been generated.'
+        : 'Saved. Your document is signed, but the PDF could not be generated right now (staff can regenerate later).';
+
       return res.redirect('/model/legal');
     } catch (e) {
-      console.error('Model legal submit error:', e);
+      console.error('Model legal sign error:', e);
       req.session.error = e.message || 'Could not sign document.';
       return res.redirect('/model/legal');
     }
   });
 
   // ============================================================
-  // ADMIN: LIST “LEGAL” EXECUTED DOCS
+  // MODEL: View executed PDF
+  // GET /model/legal/executed/:id/pdf
   // ============================================================
-  router.get('/studio-panel/legal-executed', ensureAdmin, async (req, res) => {
+  router.get('/model/legal/executed/:id/pdf', ensureLoggedIn, async (req, res) => {
     try {
-      const flash = consumeFlash(req);
-      const rows = await dbAll(
-        `SELECT ed.*, u.username
-         FROM executed_documents ed
-         LEFT JOIN users u ON u.id = ed.user_id
-         WHERE ed.doc_kind='legal'
-         ORDER BY ed.signed_at DESC
-         LIMIT 250`
-      );
-      return res.render('admin/legal-executed', {
-        staff: req.session.user,
-        rows: rows || [],
-        ...flash,
-      });
-    } catch (e) {
-      console.error('Legal executed list error:', e);
-      return res.status(500).render('error', { message: 'Could not load signed legal documents.' });
-    }
-  });
+      if (req.session?.user?.role !== 'model') {
+        return res.status(403).render('error', { message: 'Access denied.' });
+      }
 
-  // ============================================================
-  // ADMIN: email helper (secure link) — kept (optional)
-  // ============================================================
-  async function getModelBundle(modelId) {
-    const user = await dbGet(
-      `SELECT id, username, email, status, role, created_at
-       FROM users
-       WHERE id=? AND role='model'
-       LIMIT 1`,
-      [modelId]
-    );
-    if (!user) return { user: null, profile: null };
-
-    const profile = await dbGet(`SELECT * FROM model_profiles WHERE user_id=? LIMIT 1`, [modelId]);
-    return { user, profile: profile || null };
-  }
-
-  async function sendPdfLinkEmail({ req, modelId, kind, extraTo }) {
-    const { user, profile } = await getModelBundle(modelId);
-    if (!user) throw new Error('Model not found.');
-
-    const MAIL_TO_STUDIO =
-      (process.env.MAIL_TO_STUDIO && String(process.env.MAIL_TO_STUDIO).trim()) ||
-      (ctx.STUDIO_EMAILS && ctx.STUDIO_EMAILS.admin) ||
-      '';
-
-    const recipients = uniqEmails([user.email, profile?.email, MAIL_TO_STUDIO, extraTo]);
-    if (!recipients.length) throw new Error('No recipients found (model email + studio archive missing).');
-
-    const baseUrl = computeBaseUrl(req);
-
-    const map = {
-      identity: {
-        subject: `LumenNyx Studios — Identity PDF — ${user.username}`,
-        url: `${baseUrl}/studio-panel/models/${modelId}/identity.pdf`,
-      },
-      'master-release': {
-        subject: `LumenNyx Studios — Master Release PDF — ${user.username}`,
-        url: `${baseUrl}/studio-panel/models/${modelId}/master-release.pdf`,
-      },
-      consent: {
-        subject: `LumenNyx Studios — Consent & Safety PDF — ${user.username}`,
-        url: `${baseUrl}/studio-panel/models/${modelId}/consent.pdf`,
-      },
-    };
-
-    const item = map[kind];
-    if (!item) throw new Error('Invalid email kind.');
-
-    const text = [
-      `Secure document link for internal recordkeeping.`,
-      ``,
-      `Model: ${user.username} (User ID: ${user.id})`,
-      `Document: ${kind}`,
-      ``,
-      `Download/Preview (PDF):`,
-      item.url,
-      ``,
-      `If you cannot access the link, you may not be logged in as staff/admin.`,
-      ``,
-      `— LumenNyx Studios`,
-    ].join('\n');
-
-    const result = await sendMailOrLog({ to: recipients.join(', '), subject: item.subject, text });
-    return { recipients, result };
-  }
-
-  router.post('/studio-panel/models/:id/email/identity', ensureAdmin, async (req, res) => {
-    try {
+      const userId = req.session.user.id;
       const id = parseInt(req.params.id, 10);
-      if (!id) return res.status(400).render('error', { message: 'Invalid model id.' });
+      if (!id) return res.status(400).render('error', { message: 'Invalid id.' });
 
-      const extraTo = String(req.body?.to || '').trim() || null;
-      await sendPdfLinkEmail({ req, modelId: id, kind: 'identity', extraTo });
+      const row = await dbGet(
+        `SELECT id, user_id, executed_pdf_filename
+         FROM executed_documents
+         WHERE id=? AND doc_kind='legal'
+         LIMIT 1`,
+        [id]
+      );
 
-      req.session.message = 'Email sent (secure PDF link).';
-      return res.redirect(`/studio-panel/models/${id}`);
+      if (!row) return res.status(404).render('error', { message: 'Not found.' });
+      if (Number(row.user_id) !== Number(userId)) return res.status(403).render('error', { message: 'Forbidden.' });
+      if (!row.executed_pdf_filename) return res.status(404).render('error', { message: 'PDF missing.' });
+
+      const fp = path.join(executedPdfDir, path.basename(row.executed_pdf_filename));
+      if (!fs.existsSync(fp)) return res.status(404).render('error', { message: 'File missing.' });
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${path.basename(row.executed_pdf_filename)}"`);
+      return res.sendFile(fp);
     } catch (e) {
-      console.error('Email identity error:', e);
-      req.session.error = e.message || 'Could not send email.';
-      return res.redirect(`/studio-panel/models/${req.params.id}`);
+      console.error('Model executed pdf error:', e);
+      return res.status(500).render('error', { message: 'Server error.' });
     }
   });
+
+  // ============================================================
+  // ADMIN: Helpful routes (optional)
+  // NOTE: Your existing doc.js already has admin preview endpoints.
+  // This file intentionally avoids duplicating them.
+  // ============================================================
 };
