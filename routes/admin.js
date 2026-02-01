@@ -128,6 +128,51 @@ module.exports = function adminRoutes(ctx) {
   }
 
   // ------------------------------------------------------------
+  // ✅ DEBUG (temporary): confirm staff session + role + cookies
+  // ------------------------------------------------------------
+  // 1) Public minimal session peek (REMOVE after fixing)
+  router.get('/staff/_session', (req, res) => {
+    const u = req.session?.user || null;
+    res.json({
+      hasSession: !!req.session,
+      hasUser: !!u,
+      user: u
+        ? {
+            id: u.id,
+            username: u.username,
+            role: u.role,
+            status: u.status,
+            email: u.email,
+          }
+        : null,
+      ageConfirmed: !!req.session?.ageConfirmed,
+      cookie: {
+        // This reflects server config; useful to debug "cookie not sticking"
+        secure: req.session?.cookie?.secure,
+        sameSite: req.session?.cookie?.sameSite,
+        httpOnly: req.session?.cookie?.httpOnly,
+        domain: req.session?.cookie?.domain,
+        path: req.session?.cookie?.path,
+        maxAge: req.session?.cookie?.maxAge,
+      },
+      forwarded: {
+        proto: req.headers['x-forwarded-proto'] || null,
+        host: req.headers['x-forwarded-host'] || null,
+        for: req.headers['x-forwarded-for'] || null,
+      },
+    });
+  });
+
+  // 2) Protected whoami (proves requireAdmin passes)
+  router.get('/studio-panel/_whoami', requireAdmin, (req, res) => {
+    res.json({
+      ok: true,
+      user: req.session.user,
+      ageConfirmed: !!req.session.ageConfirmed,
+    });
+  });
+
+  // ------------------------------------------------------------
   // Studio Panel
   // ------------------------------------------------------------
   router.get('/studio-panel', requireAdmin, async (req, res) => {
