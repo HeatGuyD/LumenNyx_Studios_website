@@ -1,38 +1,41 @@
 // FILE: db.js
-// NOTE: This version replaces node-sqlite3 ("sqlite3") with better-sqlite3 for reliability.
-// API preserved: dbRun/dbGet/dbAll/ensureColumn/initDb
+// Canonical DB module for LumenNyx portal
+// - better-sqlite3 for reliability
+// - Preserves API: dbRun/dbGet/dbAll/ensureColumn/initDb
+// - Single DB file path (DB_PATH env override)
 
 const path = require("path");
 const fs = require("fs");
 const Database = require("better-sqlite3");
 
-const dbPath = path.join(__dirname, "database.sqlite");
+// Single canonical DB path:
+// Prefer DB_PATH, else /var/www/lumennyx/database.sqlite when running from that folder,
+// else fallback to local directory.
+const dbPath =
+  (process.env.DB_PATH && String(process.env.DB_PATH).trim()) ||
+  path.join(__dirname, "database.sqlite");
 
-// Ensure directory exists (usually __dirname already exists, but safe in case of symlinks)
+// Ensure directory exists
 try {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 } catch (_) {}
 
 // Open DB
-const db = new Database(dbPath, {
-  // You can set fileMustExist: true if you want hard failure on missing DB.
-  // fileMustExist: false,
-});
+const db = new Database(dbPath);
 
-// Recommended pragmas for production stability/perf on SQLite
+// Pragmas for production stability/perf
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 db.pragma("synchronous = NORMAL");
 
 // ----------------------
-// Promisified helpers (wrap sync better-sqlite3 calls in Promises)
+// Promise-wrapped helpers
 // ----------------------
 function dbRun(sql, params = []) {
   return new Promise((resolve, reject) => {
     try {
       const stmt = db.prepare(sql);
       const info = stmt.run(params);
-      // Match node-sqlite3's "this" shape as closely as possible
       resolve({ lastID: info.lastInsertRowid, changes: info.changes });
     } catch (err) {
       reject(err);
@@ -66,8 +69,8 @@ function dbAll(sql, params = []) {
 
 // ----------------------
 // Migration helper
-// - SQLite cannot ALTER TABLE ADD COLUMN with non-constant DEFAULT (e.g., CURRENT_TIMESTAMP)
-// - So we add the column without that default, then backfill existing rows.
+// - SQLite cannot ALTER TABLE ADD COLUMN with non-constant DEFAULT (CURRENT_TIMESTAMP / datetime('now') / etc)
+// - So we add without DEFAULT then backfill existing rows.
 // ----------------------
 function _hasNonConstantDefault(columnDefUpper) {
   return (
@@ -130,9 +133,9 @@ async function initDb() {
   if (_initPromise) return _initPromise;
 
   _initPromise = (async () => {
-    // (foreign_keys already enabled via pragma, but keep it explicit)
     await dbRun("PRAGMA foreign_keys = ON;");
 
+    // ---- Existing feature table ----
     await dbRun(`
       CREATE TABLE IF NOT EXISTS videos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -143,6 +146,7 @@ async function initDb() {
       )
     `);
 
+    // ---- Users ----
     await dbRun(`
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -164,6 +168,7 @@ async function initDb() {
     await ensureColumn("users", "is_paid_member INTEGER DEFAULT 0");
     await ensureColumn("users", "email TEXT");
 
+    // ---- Model profiles ----
     await dbRun(`
       CREATE TABLE IF NOT EXISTS model_profiles (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -201,6 +206,7 @@ async function initDb() {
     await ensureColumn("model_profiles", "created_at DATETIME DEFAULT CURRENT_TIMESTAMP");
     await ensureColumn("model_profiles", "updated_at DATETIME DEFAULT CURRENT_TIMESTAMP");
 
+    // ---- Compliance documents ----
     await dbRun(`
       CREATE TABLE IF NOT EXISTS compliance_documents (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -212,6 +218,7 @@ async function initDb() {
       )
     `);
 
+    // ---- Model photos ----
     await dbRun(`
       CREATE TABLE IF NOT EXISTS model_photos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -230,6 +237,7 @@ async function initDb() {
     await ensureColumn("model_photos", "priority INTEGER DEFAULT 0");
     await ensureColumn("model_photos", "uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP");
 
+    // ---- Master releases ----
     await dbRun(`
       CREATE TABLE IF NOT EXISTS master_releases (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -251,11 +259,8 @@ async function initDb() {
     await ensureColumn("master_releases", "signature_id INTEGER");
     await ensureColumn("master_releases", "signature_method TEXT");
     await ensureColumn("master_releases", "signature_png TEXT");
-        // ------------------------------------------------------------
-    // Document Requests
-    // - Studio staff can request a model to execute a specific doc.
-    // - Docs routes will later enforce "must have pending request".
-    // ------------------------------------------------------------
+
+    // ---- Document Requests ----
     await dbRun(`
       CREATE TABLE IF NOT EXISTS document_requests (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -272,19 +277,17 @@ async function initDb() {
       )
     `);
 
-    // Helpful indexes
     await dbRun(`CREATE INDEX IF NOT EXISTS idx_docreq_user ON document_requests(user_id);`);
     await dbRun(`CREATE INDEX IF NOT EXISTS idx_docreq_type ON document_requests(doc_type);`);
     await dbRun(`CREATE INDEX IF NOT EXISTS idx_docreq_status ON document_requests(status);`);
 
-    // Prevent duplicate pending requests for same user+doc_type
-    // (SQLite supports partial indexes)
     await dbRun(`
       CREATE UNIQUE INDEX IF NOT EXISTS ux_docreq_one_pending
       ON document_requests(user_id, doc_type)
       WHERE status='pending'
     `);
 
+    // ---- Signatures ----
     await dbRun(`
       CREATE TABLE IF NOT EXISTS signatures (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -301,6 +304,7 @@ async function initDb() {
       )
     `);
 
+    // ---- Consent policies ----
     await dbRun(`
       CREATE TABLE IF NOT EXISTS consent_policies (
         user_id INTEGER PRIMARY KEY,
@@ -334,6 +338,7 @@ async function initDb() {
     await ensureColumn("consent_policies", "consent_version TEXT");
     await ensureColumn("consent_policies", "updated_at DATETIME");
 
+    // ---- Scenes ----
     await dbRun(`
       CREATE TABLE IF NOT EXISTS scenes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -361,6 +366,7 @@ async function initDb() {
       )
     `);
 
+    // ---- Bookings ----
     await dbRun(`
       CREATE TABLE IF NOT EXISTS booking_profiles (
         user_id INTEGER PRIMARY KEY,
@@ -406,6 +412,7 @@ async function initDb() {
       )
     `);
 
+    // ---- Audit + Packages ----
     await dbRun(`
       CREATE TABLE IF NOT EXISTS audit_events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -434,7 +441,47 @@ async function initDb() {
       )
     `);
 
-    console.log("DB: Schema ready / migrations complete. (better-sqlite3)");
+    // ---- Model Applications + Invites ----
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS model_applications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TEXT DEFAULT (datetime('now')),
+        stage_name TEXT NOT NULL,
+        legal_name TEXT,
+        gender TEXT NOT NULL,
+        email TEXT NOT NULL,
+        phone TEXT,
+        location TEXT,
+        socials TEXT,
+        portfolio TEXT,
+        notes TEXT,
+        status TEXT DEFAULT 'pending',
+        headshot_filename TEXT,
+        photos_json TEXT
+      )
+    `);
+
+    await ensureColumn("model_applications", "onboarded_user_id INTEGER");
+    await ensureColumn("model_applications", "onboarded_at TEXT");
+
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS application_invites (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        application_id INTEGER NOT NULL,
+        email TEXT NOT NULL,
+        token TEXT NOT NULL UNIQUE,
+        used INTEGER DEFAULT 0,
+        used_at TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY(application_id) REFERENCES model_applications(id)
+      )
+    `);
+
+    await dbRun(`CREATE INDEX IF NOT EXISTS idx_application_invites_token ON application_invites(token);`);
+    await dbRun(`CREATE INDEX IF NOT EXISTS idx_application_invites_app ON application_invites(application_id);`);
+
+    console.log("DB: Schema ready / migrations complete. (canonical db.js)");
+    console.log(`DB: Using sqlite file at: ${dbPath}`);
   })();
 
   return _initPromise;

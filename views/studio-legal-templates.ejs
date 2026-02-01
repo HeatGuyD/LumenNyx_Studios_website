@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Legal Templates – Studio Panel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    .wrap { max-width: 1100px; margin: 1.5rem auto 2rem auto; padding: 0 1.25rem; }
+    .card { border: 1px solid rgba(255,255,255,0.10); border-radius: 16px; background: rgba(0,0,0,0.25); padding: 16px; }
+    .muted { color:#9aa0b5; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:0.92rem; }
+    .list { width:100%; border-collapse: collapse; }
+    .list th, .list td { padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,0.08); vertical-align: top; }
+    .list th { text-align:left; color: rgba(255,255,255,0.85); font-weight: 600; }
+    .actions { display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+    .btn.small { padding: 0.35rem 0.85rem; font-size: 0.85rem; }
+    .pill { display:inline-flex; align-items:center; padding: 4px 10px; border-radius: 999px; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.14); background: rgba(0,0,0,0.25); white-space: nowrap; }
+    .pill.ok { border-color: rgba(0,255,160,0.25); }
+    .pill.warn { border-color: rgba(255,200,60,0.30); }
+    .pill.bad { border-color: rgba(255,80,80,0.30); }
+  </style>
+</head>
+
+<body>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/" class="brand-link">
+        <span class="brand-mark"><img src="/img/lumennyx-mark.png" alt="LumenNyx logo"></span>
+        <span class="brand-text">LUMENNYX STUDIOS</span>
+      </a>
+
+      <nav class="main-nav">
+        <a href="/studio-panel">Studio Panel</a>
+        <a href="/studio-panel/models">Models</a>
+        <a href="/studio-panel/legal-templates" class="active">Legal Templates</a>
+        <form action="/logout" method="POST" style="display:inline;">
+          <button class="btn secondary" style="padding:0.25rem 0.9rem;font-size:0.8rem;">Logout</button>
+        </form>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <% if (message) { %><div class="alert success"><%= message %></div><% } %>
+    <% if (error) { %><div class="alert error"><%= error %></div><% } %>
+
+    <section class="card">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+        <div>
+          <h2 style="margin:0;">Legal Templates</h2>
+          <p class="muted" style="margin:8px 0 0 0;">
+            Staff preview uses the staff-safe routes (no model role required).
+          </p>
+        </div>
+        <div class="actions">
+          <a class="btn secondary small" href="/studio-panel">Back</a>
+        </div>
+      </div>
+
+      <% if (templates && templates.length) { %>
+        <table class="list" style="margin-top:12px;">
+          <thead>
+            <tr>
+              <th style="width:34%;">Template</th>
+              <th style="width:12%;">Required</th>
+              <th style="width:12%;">Active</th>
+              <th style="width:18%;">Version</th>
+              <th style="width:24%; text-align:right;">Preview</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% templates.forEach(function(t){ %>
+              <tr>
+                <td>
+                  <div style="font-weight:700;"><%= t.title %></div>
+                  <div class="muted">Slug: <span class="mono"><%= t.slug %></span> · ID: <span class="mono"><%= t.id %></span></div>
+                </td>
+                <td>
+                  <% if (t.required) { %><span class="pill warn">Required</span><% } else { %><span class="pill">Optional</span><% } %>
+                </td>
+                <td>
+                  <% if (t.active) { %><span class="pill ok">Active</span><% } else { %><span class="pill bad">Inactive</span><% } %>
+                </td>
+                <td><span class="mono"><%= t.version %></span></td>
+                <td style="text-align:right;">
+                  <div class="actions">
+                    <a class="btn secondary small" href="/studio-panel/legal-templates/<%= t.id %>/preview" target="_blank" rel="noopener">HTML</a>
+                    <a class="btn primary small" href="/studio-panel/legal-templates/<%= t.id %>/preview.pdf" target="_blank" rel="noopener">PDF</a>
+                  </div>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } else { %>
+        <p class="muted" style="margin-top:12px;">No templates found in legal_templates.</p>
+      <% } %>
+    </section>
+  </main>
+</body>
+</html>

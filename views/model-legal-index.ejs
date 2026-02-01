@@ -100,8 +100,8 @@
         <div>
           <h2>Legal Documents</h2>
           <p class="muted sub">
-            Review and sign the studio legal documents. Completed items will show as signed.
-            If a document is updated, you may be asked to re-sign.
+            Review and sign the studio legal documents. These documents require additional information (not just a signature).
+            Completed items will show as signed. If a document is updated, you may be asked to re-sign.
           </p>
         </div>
         <div class="actions">
@@ -187,7 +187,7 @@
                 <td style="text-align:right;">
                   <div class="btnrow">
                     <% if (!t.signed || t.needs_resign) { %>
-                      <a class="btn primary small" href="/model/legal/<%= t.slug %>">Review & Sign</a>
+                      <a class="btn primary small" href="/model/legal/<%= t.slug %>">Review, Fill & Sign</a>
                     <% } else { %>
                       <a class="btn secondary small" href="/model/legal/<%= t.slug %>">View</a>
                       <% if (t.executed_id) { %>
