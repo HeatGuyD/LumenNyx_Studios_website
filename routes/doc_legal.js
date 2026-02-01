@@ -1,15 +1,8 @@
-cd /var/www/lumennyx
-
-# backup first
-cp -a routes/doc_legal.js routes/doc_legal.js.bak.$(date +%F_%H%M%S)
-
-# overwrite with the fixed file
-cat > routes/doc_legal.js <<'EOF'
 // FILE: routes/doc_legal.js
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { sendMailOrLog } = require('../lib/mailer');
+const { sendMailOrLog } = require('../lib/mailer'); // kept for future / optional use
 
 function sha256Hex(input) {
   const h = crypto.createHash('sha256');
@@ -23,6 +16,8 @@ function sanitizeSlug(input) {
     .toLowerCase()
     .replace(/\s+/g, '-')
     .replace(/[^a-z0-9_-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
     .slice(0, 60);
 }
 
@@ -71,7 +66,6 @@ function uniqEmails(arr) {
  *  - factory returning middleware: () => (req,res,next) => {}
  *
  * We ONLY auto-call if the function declares 0 params (length === 0).
- * That matches patterns like requireAuth() and avoids calling real middleware.
  */
 function normalizeGuard(mwOrFactory, name) {
   if (typeof mwOrFactory !== 'function') {
@@ -91,7 +85,7 @@ function normalizeGuard(mwOrFactory, name) {
       if (typeof maybe === 'function') return maybe;
     } catch (e) {
       console.error(`Guard factory threw for ${name}:`, e);
-      return mwOrFactory;
+      // fall through
     }
   }
 
@@ -108,11 +102,15 @@ function ensureDirExists(dirPath) {
 }
 
 module.exports = function attachLegalDocRoutes(router, ctx) {
+  if (!router) throw new Error('attachLegalDocRoutes: router missing');
+  if (!ctx || !ctx.db) throw new Error('attachLegalDocRoutes: ctx/db missing');
+
   const { dbRun, dbGet, dbAll, ensureColumn } = ctx.db;
   const audit = ctx.audit;
 
   // Storage
-  const executedPdfDir = ctx.uploadDirs.docUploadsDir;
+  const executedPdfDir = ctx.uploadDirs?.docUploadsDir;
+  if (!executedPdfDir) throw new Error('attachLegalDocRoutes: ctx.uploadDirs.docUploadsDir missing');
   ensureDirExists(executedPdfDir);
 
   // Guards from ctx (doc.js injects these)
@@ -121,6 +119,16 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
 
   // PDF renderer from ctx
   const renderPdfFromHtml = ctx.renderPdfFromHtml;
+
+  function ensurePdfRenderer(req, res) {
+    if (typeof renderPdfFromHtml !== 'function') {
+      console.error('renderPdfFromHtml missing from ctx; cannot generate PDFs');
+      if (req && req.session) req.session.error = 'PDF rendering is not available on this server.';
+      res.status(500);
+      return res.render('error', { message: 'PDF rendering is not available on this server.' });
+    }
+    return null;
+  }
 
   async function getLatestSignature(userId) {
     return dbGet(`SELECT * FROM signatures WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, [userId]);
@@ -325,7 +333,7 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
       );
 
       try {
-        await audit.log(req, {
+        await audit?.log?.(req, {
           action: 'legal_template_created',
           entityType: 'legal_template',
           entityId: null,
@@ -398,7 +406,7 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
       );
 
       try {
-        await audit.log(req, {
+        await audit?.log?.(req, {
           action: 'legal_template_updated',
           entityType: 'legal_template',
           entityId: id,
@@ -434,7 +442,6 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
          ORDER BY required DESC, id ASC`
       );
 
-      // include id so you can link to /model/legal/executed/:id/pdf
       const execRows = await dbAll(
         `SELECT id, template_id, template_version, signed_at, executed_pdf_filename
          FROM executed_documents
@@ -461,8 +468,8 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
         };
       });
 
-      const requiredMissing = items.filter((x) => x.required === 1 && !x.signed).length;
-      const requiredNeedsResign = items.filter((x) => x.required === 1 && x.needs_resign).length;
+      const requiredMissing = items.filter((x) => Number(x.required) === 1 && !x.signed).length;
+      const requiredNeedsResign = items.filter((x) => Number(x.required) === 1 && x.needs_resign).length;
 
       return res.render('model-legal-index', {
         currentUser: req.session.user,
@@ -530,6 +537,10 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
       if (req.session?.user?.role !== 'model') {
         return res.status(403).render('error', { message: 'Access denied.' });
       }
+
+      // Ensure PDF renderer exists before doing work
+      const bad = ensurePdfRenderer(req, res);
+      if (bad) return;
 
       const userId = req.session.user.id;
       const slug = sanitizeSlug(req.params.slug);
@@ -600,7 +611,6 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
         signatureDataUrl = null;
       }
 
-      // Render HTML via res.render callback (no ctx._res hacks)
       const html = await new Promise((resolve, reject) => {
         res.render(
           'print/legal-template',
@@ -638,7 +648,7 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
       });
 
       try {
-        await audit.log(req, {
+        await audit?.log?.(req, {
           action: 'legal_doc_signed',
           entityType: 'legal_template',
           entityId: tpl.id,
@@ -681,7 +691,7 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
   });
 
   // ============================================================
-  // ADMIN: email helper (secure link)
+  // ADMIN: email helper (secure link) — kept (optional)
   // ============================================================
   async function getModelBundle(modelId) {
     const user = await dbGet(
@@ -701,7 +711,6 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
     const { user, profile } = await getModelBundle(modelId);
     if (!user) throw new Error('Model not found.');
 
-    // IMPORTANT: keep this as a single, valid JS expression (no line-ending "||" fragments).
     const MAIL_TO_STUDIO =
       (process.env.MAIL_TO_STUDIO && String(process.env.MAIL_TO_STUDIO).trim()) ||
       (ctx.STUDIO_EMAILS && ctx.STUDIO_EMAILS.admin) ||
@@ -765,4 +774,3 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
     }
   });
 };
-EOF
