@@ -33,15 +33,15 @@ function ensureDirExists(dirPath) {
   }
 }
 
+// NOTE: model-side pages still enforce age gate
 function ensureLoggedIn(req, res, next) {
-  // model-side pages still enforce age gate
   if (!req.session?.ageConfirmed) return res.redirect('/age-check');
   if (!req.session?.user?.id) return res.redirect('/login');
   next();
 }
 
+// NOTE: staff/admin must NOT be forced through public age gate
 function ensureAdmin(req, res, next) {
-  // IMPORTANT: Do NOT force staff/admin through public age gate.
   if (!req.session?.user) return res.redirect('/staff-login');
 
   const role = req.session.user.role;
@@ -55,6 +55,13 @@ function ensureAdmin(req, res, next) {
   next();
 }
 
+/**
+ * Render a "legal-looking" PDF from HTML.
+ * - Letter size
+ * - 1" margins
+ * - printBackground
+ * - prefer CSS @page rules
+ */
 async function renderPdfFromHtml({ html }) {
   if (!puppeteer) throw new Error('Puppeteer is not installed. Run: npm i puppeteer');
 
@@ -71,11 +78,17 @@ async function renderPdfFromHtml({ html }) {
   const browser = await puppeteer.launch(launchOptions);
   try {
     const page = await browser.newPage();
+    page.setDefaultNavigationTimeout(60_000);
+    page.setDefaultTimeout(60_000);
+
     await page.setContent(html, { waitUntil: 'networkidle0' });
+    await page.emulateMediaType('screen');
+
     return await page.pdf({
       format: 'Letter',
       printBackground: true,
-      margin: { top: '0.55in', right: '0.6in', bottom: '0.55in', left: '0.6in' },
+      preferCSSPageSize: true,
+      margin: { top: '1in', right: '1in', bottom: '1in', left: '1in' },
     });
   } finally {
     await browser.close();
@@ -138,7 +151,6 @@ module.exports = function docRoutes(ctx) {
 
   // ============================================================
   // Attach extracted legal-doc routes (doc_legal.js)
-  // IMPORTANT: this must be top-level, NOT inside a route.
   // ============================================================
   try {
     attachLegalDocRoutes(router, {
@@ -156,7 +168,6 @@ module.exports = function docRoutes(ctx) {
   // SCHEMA
   // -----------------------
   (async () => {
-    // Existing executed_documents table
     await dbRun(`
       CREATE TABLE IF NOT EXISTS executed_documents (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -174,14 +185,12 @@ module.exports = function docRoutes(ctx) {
     await dbRun(`CREATE INDEX IF NOT EXISTS idx_executed_docs_user ON executed_documents(user_id);`);
     await dbRun(`CREATE INDEX IF NOT EXISTS idx_executed_docs_type ON executed_documents(doc_type);`);
 
-    // Extend executed_documents for template-driven “DocuSign-ish” flow (add-only)
-    await ensureColumn('executed_documents', `doc_kind TEXT`); // 'legacy' or 'legal'
+    await ensureColumn('executed_documents', `doc_kind TEXT`);
     await ensureColumn('executed_documents', `template_id INTEGER`);
     await ensureColumn('executed_documents', `template_slug TEXT`);
     await ensureColumn('executed_documents', `template_title TEXT`);
     await ensureColumn('executed_documents', `template_version TEXT`);
 
-    // Template library
     await dbRun(`
       CREATE TABLE IF NOT EXISTS legal_templates (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -195,11 +204,9 @@ module.exports = function docRoutes(ctx) {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
-
     await dbRun(`CREATE INDEX IF NOT EXISTS idx_legal_templates_active ON legal_templates(active);`);
     await dbRun(`CREATE INDEX IF NOT EXISTS idx_legal_templates_required ON legal_templates(required);`);
 
-    // Scene legal snapshots
     await dbRun(`
       CREATE TABLE IF NOT EXISTS scene_legal_snapshots (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -269,7 +276,7 @@ module.exports = function docRoutes(ctx) {
   }
 
   /* ======================================================================
-     ✅ COMPLIANCE ENGINE (badge + booking lock + scene snapshot support)
+     ✅ COMPLIANCE ENGINE
      ====================================================================== */
 
   function parseCsvList(s) {
@@ -279,7 +286,6 @@ module.exports = function docRoutes(ctx) {
       .filter(Boolean);
   }
 
-  // Optional: define REQUIRED_COMPLIANCE_DOC_TYPES="id_front,id_back,w9"
   const REQUIRED_COMPLIANCE_DOC_TYPES = parseCsvList(process.env.REQUIRED_COMPLIANCE_DOC_TYPES);
 
   async function getRequiredLegalTemplates() {
@@ -402,8 +408,8 @@ module.exports = function docRoutes(ctx) {
 
     const uploadsOk = !out.requiredUploads.required.length || out.requiredUploads.missing.length === 0;
     const legalOk = out.requiredLegal.missing === 0 && out.requiredLegal.needsResign === 0;
-
     out.ok = !!out.hasMasterRelease && !!out.hasConsentPolicy && uploadsOk && legalOk;
+
     return out;
   }
 
@@ -432,6 +438,7 @@ module.exports = function docRoutes(ctx) {
     return snapshot;
   }
 
+  // Attach into ctx.compliance without nuking existing
   if (!ctx.compliance) ctx.compliance = {};
   ctx.compliance.getModelComplianceStatus = getModelComplianceStatus;
   ctx.compliance.captureSceneLegalSnapshot = captureSceneLegalSnapshot;
@@ -455,7 +462,7 @@ module.exports = function docRoutes(ctx) {
   };
 
   // ============================================================
-  // ✅ ADMIN + MODEL: Compliance status endpoints (Badge source)
+  // MODEL + ADMIN: Compliance status endpoints
   // ============================================================
   router.get('/model/compliance.json', ensureLoggedIn, async (req, res) => {
     try {
@@ -603,6 +610,11 @@ module.exports = function docRoutes(ctx) {
       const docType = requireLegacyDocType(String(req.params.docType || '').trim());
       const userId = req.session.user.id;
 
+      if (!puppeteer) {
+        req.session.error = 'PDF rendering is not available (puppeteer missing).';
+        return res.redirect(`/docs/${docType}`);
+      }
+
       const sig = await getLatestSignature(userId);
       if (!sig) {
         req.session.error = 'Please complete your signature first (Signature Setup).';
@@ -715,7 +727,7 @@ module.exports = function docRoutes(ctx) {
       });
 
       try {
-        await audit.log(req, {
+        await audit?.log?.(req, {
           action: 'executed_doc_signed',
           entityType: 'user',
           entityId: userId,
@@ -733,7 +745,114 @@ module.exports = function docRoutes(ctx) {
   });
 
   // ============================================================
-  // ADMIN: PRINT / DOWNLOAD endpoints used by studio-model-view.ejs
+  // STAFF PREVIEW: Legal template preview (HTML + PDF)
+  // ============================================================
+  router.get('/studio-panel/legal-templates/:id/preview', ensureAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (!id) return res.status(400).render('error', { message: 'Invalid template id.' });
+
+      const template = await dbGet(
+        `SELECT id, slug, title, body_html, version, required, active, updated_at, created_at
+         FROM legal_templates
+         WHERE id=? LIMIT 1`,
+        [id]
+      );
+      if (!template) return res.status(404).render('error', { message: 'Template not found.' });
+
+      const payload = {
+        signer: { username: 'STAFF_PREVIEW', userId: req.session?.user?.id || null },
+        audit: { ip: getClientIp(req), ua: req.headers['user-agent'] || '' },
+      };
+
+      const signature = {
+        full_name: 'Staff Preview',
+        typed_name: 'Staff Preview',
+        signature_data_url: null,
+      };
+
+      const auditObj = {
+        ip: getClientIp(req),
+        ua: req.headers['user-agent'] || '',
+        signedAtIso: new Date().toISOString(),
+      };
+
+      return res.render('print/legal-template', {
+        template,
+        payload,
+        signature,
+        audit: auditObj,
+        studioEmails: ctx.STUDIO_EMAILS,
+      });
+    } catch (e) {
+      console.error('staff template preview html error:', e);
+      return res.status(500).render('error', { message: 'Could not render preview.' });
+    }
+  });
+
+  router.get('/studio-panel/legal-templates/:id/preview.pdf', ensureAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (!id) return res.status(400).send('Invalid template id.');
+
+      if (!puppeteer) return res.status(500).send('PDF rendering is not available (puppeteer missing).');
+
+      const template = await dbGet(
+        `SELECT id, slug, title, body_html, version, required, active, updated_at, created_at
+         FROM legal_templates
+         WHERE id=? LIMIT 1`,
+        [id]
+      );
+      if (!template) return res.status(404).send('Template not found.');
+
+      const payload = {
+        signer: { username: 'STAFF_PREVIEW', userId: req.session?.user?.id || null },
+        audit: { ip: getClientIp(req), ua: req.headers['user-agent'] || '' },
+      };
+
+      const signature = {
+        full_name: 'Staff Preview',
+        typed_name: 'Staff Preview',
+        signature_data_url: null,
+      };
+
+      const auditObj = {
+        ip: getClientIp(req),
+        ua: req.headers['user-agent'] || '',
+        signedAtIso: new Date().toISOString(),
+      };
+
+      const html = await new Promise((resolve, reject) => {
+        res.render(
+          'print/legal-template',
+          {
+            template,
+            payload,
+            signature,
+            audit: auditObj,
+            studioEmails: ctx.STUDIO_EMAILS,
+          },
+          (err, out) => (err ? reject(err) : resolve(out))
+        );
+      });
+
+      const pdf = await renderPdfFromHtml({ html });
+
+      const safeSlug = String(template.slug || 'template').replace(/[^a-z0-9_-]/gi, '_');
+      const safeVer = String(template.version || 'v1').replace(/[^a-z0-9_.-]/gi, '_');
+      const fn = `preview_${safeSlug}_${safeVer}.pdf`;
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${fn}"`);
+      return res.send(pdf);
+    } catch (e) {
+      console.error('staff template preview pdf error:', e);
+      return res.status(500).send('Could not generate preview PDF.');
+    }
+  });
+
+  // ============================================================
+  // ADMIN: PRINT / DOWNLOAD endpoints
   // ============================================================
   async function getModelBundle(modelId) {
     const user = await dbGet(
@@ -946,18 +1065,9 @@ module.exports = function docRoutes(ctx) {
     const baseUrl = computeBaseUrl(req);
 
     const map = {
-      identity: {
-        subject: `LumenNyx Studios — Identity PDF — ${user.username}`,
-        url: `${baseUrl}/studio-panel/models/${modelId}/identity.pdf`,
-      },
-      'master-release': {
-        subject: `LumenNyx Studios — Master Release PDF — ${user.username}`,
-        url: `${baseUrl}/studio-panel/models/${modelId}/master-release.pdf`,
-      },
-      consent: {
-        subject: `LumenNyx Studios — Consent & Safety PDF — ${user.username}`,
-        url: `${baseUrl}/studio-panel/models/${modelId}/consent.pdf`,
-      },
+      identity: { subject: `LumenNyx Studios — Identity PDF — ${user.username}`, url: `${baseUrl}/studio-panel/models/${modelId}/identity.pdf` },
+      'master-release': { subject: `LumenNyx Studios — Master Release PDF — ${user.username}`, url: `${baseUrl}/studio-panel/models/${modelId}/master-release.pdf` },
+      consent: { subject: `LumenNyx Studios — Consent & Safety PDF — ${user.username}`, url: `${baseUrl}/studio-panel/models/${modelId}/consent.pdf` },
     };
 
     const item = map[kind];
@@ -981,6 +1091,9 @@ module.exports = function docRoutes(ctx) {
     return { recipients, result };
   }
 
+  // NOTE: the rest of your admin PDF + executed routes remain the same as your current file.
+  // To avoid introducing new risk, we keep your existing implementations below unchanged.
+
   router.get('/studio-panel/models/:id/identity', ensureAdmin, async (req, res) => {
     try {
       const id = parseInt(req.params.id, 10);
@@ -1002,6 +1115,8 @@ module.exports = function docRoutes(ctx) {
     try {
       const id = parseInt(req.params.id, 10);
       if (!id) return res.status(400).send('Invalid model id.');
+
+      if (!puppeteer) return res.status(500).send('PDF rendering is not available (puppeteer missing).');
 
       const { user, profile } = await getModelBundle(id);
       if (!user) return res.status(404).send('Model not found.');
@@ -1042,6 +1157,8 @@ module.exports = function docRoutes(ctx) {
       const id = parseInt(req.params.id, 10);
       if (!id) return res.status(400).send('Invalid model id.');
 
+      if (!puppeteer) return res.status(500).send('PDF rendering is not available (puppeteer missing).');
+
       const { user, masterRelease } = await getModelBundle(id);
       if (!user) return res.status(404).send('Model not found.');
       if (!masterRelease) return res.status(404).send('Master release not found.');
@@ -1081,6 +1198,8 @@ module.exports = function docRoutes(ctx) {
     try {
       const id = parseInt(req.params.id, 10);
       if (!id) return res.status(400).send('Invalid model id.');
+
+      if (!puppeteer) return res.status(500).send('PDF rendering is not available (puppeteer missing).');
 
       const { user, policies } = await getModelBundle(id);
       if (!user) return res.status(404).send('Model not found.');
@@ -1150,9 +1269,6 @@ module.exports = function docRoutes(ctx) {
     }
   });
 
-  // ============================================================
-  // Keep your existing executed docs list + pdf serving routes
-  // ============================================================
   router.get('/studio-panel/executed', ensureAdmin, async (req, res) => {
     try {
       const rows = await dbAll(

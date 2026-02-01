@@ -1,89 +1,341 @@
+<!-- FILE: views/print/legal-template.ejs -->
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title><%= template ? template.title : 'Executed Legal Document' %></title>
+  <title><%= (template && template.title) ? template.title : 'Legal Document' %></title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
   <style>
-    body { font-family: Arial, sans-serif; color:#111; font-size: 12px; }
-    .header { border-bottom: 2px solid #111; padding-bottom: 10px; margin-bottom: 14px; }
-    .brand { font-size: 16px; font-weight: 700; }
-    .meta { margin-top: 4px; color:#333; font-size: 11px; }
-    .section { margin: 14px 0; }
-    .box { border: 1px solid #111; border-radius: 8px; padding: 10px; }
-    .small { font-size: 11px; color:#333; }
-    .hr { border-top: 1px solid #ccc; margin: 12px 0; }
-    .doc { line-height: 1.5; }
-    .doc h1,.doc h2,.doc h3 { margin: 10px 0 6px; }
-    .doc p { margin: 8px 0; }
-    .sigrow { display:flex; gap: 16px; align-items:flex-end; }
-    .sigbox { width: 340px; }
-    .sigimg { border: 1px solid #111; height: 90px; border-radius: 6px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
-    .sigimg img { max-height: 88px; max-width: 330px; }
-    .line { border-top: 1px solid #111; margin-top: 8px; padding-top: 6px; }
+    /* ============================================================
+       LUMENNYX LEGAL PDF TEMPLATE (PUPPETEER/CHROMIUM FRIENDLY)
+       - Stable formatting (no locale rendering dependencies)
+       - Print-grade layout (Letter)
+       - Signature + audit + executed copy language
+       ============================================================ */
+
+    @page { size: Letter; margin: 0.8in; }
+
+    html, body {
+      padding: 0;
+      margin: 0;
+      color: #111;
+      font-family: "Times New Roman", Times, Georgia, serif;
+      font-size: 12pt;
+      line-height: 1.35;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .page { width: 100%; }
+
+    .doc-header {
+      border-bottom: 2px solid #111;
+      padding-bottom: 10px;
+      margin-bottom: 16px;
+    }
+
+    .brandline {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .studio {
+      font-size: 12pt;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .docmeta {
+      text-align: right;
+      font-size: 10pt;
+      color: #222;
+      line-height: 1.25;
+    }
+
+    .title {
+      font-size: 16pt;
+      font-weight: 700;
+      text-align: center;
+      margin: 8px 0 0 0;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    .submeta {
+      margin-top: 12px;
+      font-size: 10.5pt;
+      color: #111;
+    }
+
+    .submeta .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      margin: 3px 0;
+    }
+
+    .submeta .left { flex: 1; }
+    .submeta .right { text-align: right; flex: 1; overflow-wrap: anywhere; }
+
     .label { font-weight: 700; }
-    a { color:#111; text-decoration:none; }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .lead { margin: 12px 0 14px 0; font-size: 12pt; }
+
+    .notice {
+      border: 1px solid #222;
+      padding: 10px 12px;
+      margin: 12px 0;
+      font-size: 11.5pt;
+    }
+    .notice strong { text-transform: uppercase; }
+
+    .hr { border-top: 1px solid #333; margin: 14px 0; }
+
+    /* Normalize body HTML */
+    .body { margin-top: 10px; }
+    .body h1, .body h2, .body h3 {
+      font-family: "Times New Roman", Times, Georgia, serif;
+      page-break-after: avoid;
+      margin: 14px 0 8px 0;
+    }
+    .body h1 { font-size: 14pt; text-transform: uppercase; letter-spacing: 0.4px; }
+    .body h2 { font-size: 12.5pt; text-transform: uppercase; letter-spacing: 0.3px; }
+    .body h3 { font-size: 12pt; font-weight: 700; }
+
+    .body p { margin: 0 0 10px 0; text-align: justify; }
+    .body ul, .body ol { margin: 0 0 10px 22px; padding: 0; }
+    .body li { margin: 4px 0; }
+    .body table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0;
+      font-size: 11.5pt;
+    }
+    .body th, .body td {
+      border: 1px solid #222;
+      padding: 6px 8px;
+      vertical-align: top;
+    }
+    .body th { background: #f2f2f2; font-weight: 700; }
+
+    /* Signature area */
+    .sig-area {
+      margin-top: 18px;
+      page-break-inside: avoid;
+    }
+
+    .sig-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .sig-box {
+      border: 1px solid #222;
+      padding: 10px 12px;
+      min-height: 155px;
+    }
+
+    .sig-title {
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      margin-bottom: 10px;
+    }
+
+    .sig-line {
+      border-bottom: 1px solid #111;
+      height: 44px;
+      margin: 8px 0 6px 0;
+      display: flex;
+      align-items: flex-end;
+    }
+
+    .sig-img { max-height: 40px; max-width: 100%; object-fit: contain; }
+
+    .sig-field {
+      font-size: 10.5pt;
+      margin: 4px 0;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .sig-field span { font-weight: 700; }
+
+    /* Audit table */
+    .audit {
+      margin-top: 14px;
+      font-size: 10pt;
+      color: #222;
+      page-break-inside: avoid;
+    }
+
+    .audit table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10pt;
+    }
+    .audit td {
+      border: 1px solid #222;
+      padding: 6px 8px;
+      vertical-align: top;
+    }
+    .audit td:first-child {
+      width: 30%;
+      font-weight: 700;
+      background: #f2f2f2;
+    }
+
+    /* Footer block (visible) */
+    .footer {
+      margin-top: 18px;
+      border-top: 1px solid #333;
+      padding-top: 8px;
+      font-size: 9.5pt;
+      color: #333;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    /* Print control */
+    p, li { orphans: 2; widows: 2; }
+    .page-break { page-break-before: always; }
   </style>
 </head>
 
 <body>
-  <div class="header">
-    <div class="brand">LumenNyx Studios — Executed Legal Document</div>
-    <div class="meta">
-      Document: <strong><%= template ? template.title : '—' %></strong>
-      · Version: <strong><%= template ? template.version : '—' %></strong>
-      · Slug: <strong><%= template ? template.slug : '—' %></strong>
-    </div>
-    <div class="meta">
-      Generated: <strong><%= (audit && audit.signedAtIso) ? audit.signedAtIso : new Date().toISOString() %></strong>
-    </div>
-  </div>
+  <%
+    // Prefer stable ISO strings for PDFs. Avoid locale-dependent rendering inside Chromium.
+    const signedIso =
+      (audit && audit.signedAtIso) ? audit.signedAtIso :
+      (payload && payload.consent && payload.consent.agreedAtIso) ? payload.consent.agreedAtIso :
+      new Date().toISOString();
 
-  <div class="section box">
-    <div class="small">
-      <span class="label">Studio Contact:</span>
-      <%= (studioEmails && (studioEmails.admin || studioEmails.booking || studioEmails.general)) ? (studioEmails.admin || studioEmails.booking || studioEmails.general) : '—' %>
-    </div>
-    <div class="small" style="margin-top:4px;">
-      <span class="label">Signer (User):</span>
-      <%= (payload && payload.signer && payload.signer.username) ? payload.signer.username : '—' %>
-      (ID: <%= (payload && payload.signer && payload.signer.userId) ? payload.signer.userId : '—' %>)
-    </div>
-  </div>
+    const signerUsername = (payload && payload.signer && payload.signer.username) ? payload.signer.username : '—';
+    const signerUserId = (payload && payload.signer && payload.signer.userId) ? payload.signer.userId : '—';
 
-  <div class="section box doc">
-    <!-- Render the stored HTML body -->
-    <%- template && template.body_html ? template.body_html : '<p>No document body found.</p>' %>
-  </div>
+    const tplSlug = (template && template.slug) ? template.slug : 'legal';
+    const tplVer  = (template && template.version) ? template.version : 'v1';
+    const tplTitle = (template && template.title) ? template.title : 'Legal Document';
 
-  <div class="section box">
-    <div class="sigrow">
-      <div class="sigbox">
-        <div class="label">Signature</div>
-        <div class="sigimg">
-          <% if (signature && signature.signature_data_url) { %>
-            <img src="<%= signature.signature_data_url %>" alt="Signature" />
-          <% } else { %>
-            <div class="small">Signature image not available</div>
-          <% } %>
-        </div>
-        <div class="line small">
-          Signed Name: <strong><%= signature ? (signature.typed_name || '—') : '—' %></strong>
+    const printedName =
+      (signature && (signature.full_name || signature.legal_name || signature.typed_name))
+        ? (signature.full_name || signature.legal_name || signature.typed_name)
+        : (signerUsername !== '—' ? signerUsername : '—');
+
+    const ip = (audit && audit.ip) ? audit.ip : ((payload && payload.audit && payload.audit.ip) ? payload.audit.ip : '—');
+    const ua = (audit && audit.ua) ? audit.ua : ((payload && payload.audit && payload.audit.ua) ? payload.audit.ua : '—');
+  %>
+
+  <div class="page">
+    <div class="doc-header">
+      <div class="brandline">
+        <div class="studio">LumenNyx Studios</div>
+        <div class="docmeta">
+          <div>Document: <span class="mono"><%= tplSlug %></span></div>
+          <div>Version: <span class="mono"><%= tplVer %></span></div>
         </div>
       </div>
 
-      <div style="flex:1;">
-        <div class="label">Audit Trail</div>
-        <div class="small" style="margin-top: 6px;">
-          IP: <strong><%= audit ? (audit.ip || '—') : '—' %></strong><br/>
-          User Agent: <strong><%= audit ? (audit.ua || '—') : '—' %></strong><br/>
-          Signed At: <strong><%= audit ? (audit.signedAtIso || '—') : '—' %></strong>
+      <div class="title"><%= tplTitle %></div>
+
+      <div class="submeta">
+        <div class="row">
+          <div class="left"><span class="label">Executed Timestamp (UTC):</span> <span class="mono"><%= signedIso %></span></div>
+          <div class="right"><span class="label">Executed Copy</span></div>
+        </div>
+        <div class="row">
+          <div class="left"><span class="label">Signer (Username):</span> <%= signerUsername %></div>
+          <div class="right"><span class="label">User ID:</span> <span class="mono"><%= signerUserId %></span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notice">
+      <strong>Electronic Signature & Record</strong><br/>
+      This document is an executed copy generated by the LumenNyx Studios portal.
+      By signing electronically, the signer affirms they reviewed the terms and intended to sign.
+      The template body below reflects the active template version at the time of execution.
+    </div>
+
+    <div class="body">
+      <%- (template && template.body_html) ? template.body_html : '<p><em>No template body found.</em></p>' %>
+    </div>
+
+    <div class="sig-area">
+      <div class="hr"></div>
+
+      <div class="sig-grid">
+        <div class="sig-box">
+          <div class="sig-title">Signer</div>
+
+          <div class="sig-line">
+            <% if (signature && signature.signature_data_url) { %>
+              <img class="sig-img" src="<%= signature.signature_data_url %>" alt="Signature" />
+            <% } else { %>
+              <span style="font-size:10pt;color:#666;">(Signature on file)</span>
+            <% } %>
+          </div>
+
+          <div class="sig-field"><span>Printed Name:</span> <%= printedName %></div>
+          <div class="sig-field"><span>Date/Time (UTC):</span> <span class="mono"><%= signedIso %></span></div>
+          <div class="sig-field"><span>Initials:</span> ____________________</div>
         </div>
 
-        <div class="hr"></div>
+        <div class="sig-box">
+          <div class="sig-title">Studio / Records</div>
+          <div class="sig-field"><span>Company:</span> LumenNyx Studios</div>
+          <div class="sig-field"><span>Template:</span> <span class="mono"><%= tplSlug %></span></div>
+          <div class="sig-field"><span>Template Version:</span> <span class="mono"><%= tplVer %></span></div>
 
-        <div class="small">
-          This PDF is a generated record of the executed agreement for internal compliance and recordkeeping.
+          <% if (studioEmails) { %>
+            <div class="sig-field" style="margin-top:10px;"><span>Records Routing:</span></div>
+            <div class="sig-field mono">
+              <% Object.keys(studioEmails || {}).forEach((k) => { %>
+                <div><%= k %>: <%= studioEmails[k] %></div>
+              <% }); %>
+            </div>
+          <% } %>
         </div>
+      </div>
+
+      <div class="audit">
+        <table>
+          <tr>
+            <td>Signed Timestamp (UTC)</td>
+            <td class="mono"><%= signedIso %></td>
+          </tr>
+          <tr>
+            <td>IP Address</td>
+            <td class="mono"><%= ip %></td>
+          </tr>
+          <tr>
+            <td>User Agent</td>
+            <td class="mono"><%= ua %></td>
+          </tr>
+          <tr>
+            <td>Integrity</td>
+            <td class="mono">Payload hash generated & stored server-side in executed_documents.document_hash</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="footer">
+        <div>Executed via LumenNyx Studios portal • Confidential</div>
+        <div class="mono"><%= tplSlug %> / <%= tplVer %></div>
       </div>
     </div>
   </div>

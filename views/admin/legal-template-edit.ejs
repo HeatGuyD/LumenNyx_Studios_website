@@ -10,9 +10,12 @@
     textarea { width: 100%; min-height: 360px; font-family: ui-monospace, Menlo, Consolas, monospace; }
     .row { display:flex; gap:12px; flex-wrap:wrap; }
     .row > label { flex: 1; min-width: 220px; }
+    .help { margin-top: 6px; color: rgba(255,255,255,0.75); font-size: 0.9rem; line-height: 1.35; }
+    .help .mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
   </style>
 </head>
-<body class="home">
+
+<body class="home" data-is-edit="<%= (template && template.id) ? '1' : '0' %>">
   <header class="site-header">
     <div class="site-header-inner">
       <a href="/studio-panel" class="brand-link">
@@ -44,36 +47,51 @@
         <div class="row">
           <label>
             Title
-            <input type="text" name="title" value="<%= template ? template.title : '' %>" required>
+            <input id="title" type="text" name="title" value="<%= template ? template.title : '' %>" required>
+            <div class="help">
+              Public-facing label shown to models.
+            </div>
           </label>
+
           <label>
             Slug (URL id)
-            <input type="text" name="slug" value="<%= template ? template.slug : '' %>" placeholder="master-release" required>
+            <input id="slug" type="text" name="slug" value="<%= template ? template.slug : '' %>" placeholder="master-release" required>
+            <div class="help">
+              Used in the model URL: <span class="mono">/model/legal/&lt;slug&gt;</span>
+            </div>
           </label>
+
           <label>
             Version
-            <input type="text" name="version" value="<%= template ? template.version : 'v1' %>" required>
+            <input id="version" type="text" name="version" value="<%= template ? template.version : 'v1' %>" required>
+            <div class="help">
+              Increment this to require re-signing. Example: <span class="mono">v2</span>
+            </div>
           </label>
         </div>
 
         <div class="row" style="margin-top:10px;">
           <label style="display:flex; gap:10px; align-items:center;">
-            <input type="checkbox" name="required" <%= (!template || Number(template.required) === 1) ? 'checked' : '' %> >
+            <input id="required" type="checkbox" name="required" <%= (!template || Number(template.required) === 1) ? 'checked' : '' %> >
             <span>Required</span>
           </label>
 
           <label style="display:flex; gap:10px; align-items:center;">
-            <input type="checkbox" name="active" <%= (!template || Number(template.active) === 1) ? 'checked' : '' %> >
+            <input id="active" type="checkbox" name="active" <%= (!template || Number(template.active) === 1) ? 'checked' : '' %> >
             <span>Active</span>
           </label>
         </div>
 
         <label style="display:block; margin-top:12px;">
           Body HTML
-          <textarea name="body_html" required><%= template ? template.body_html : '' %></textarea>
+          <textarea id="body_html" name="body_html" required><%= template ? template.body_html : '' %></textarea>
           <div class="field-help">
-            Tip: Use simple HTML (headings, paragraphs, lists). This is internal portal-only content.
+            Tip: Use simple HTML (headings, paragraphs, lists). This is portal-only content.
             When you change version, models who already signed will be flagged as “needs re-sign”.
+          </div>
+          <div class="help">
+            Allowed tags: <span class="mono">&lt;h1&gt; &lt;h2&gt; &lt;h3&gt; &lt;p&gt; &lt;ul&gt; &lt;ol&gt; &lt;li&gt; &lt;table&gt;</span> etc.
+            Avoid remote images/scripts—PDF generation can hang if assets don’t load.
           </div>
         </label>
 
@@ -87,5 +105,36 @@
       </form>
     </section>
   </main>
+
+  <script>
+    (function () {
+      // Robust: avoid embedding EJS in JS.
+      var body = document.body;
+      var isEdit = body && body.getAttribute('data-is-edit') === '1';
+      if (isEdit) return; // only auto-slug on NEW templates
+
+      var title = document.getElementById('title');
+      var slug = document.getElementById('slug');
+      if (!title || !slug) return;
+
+      var slugTouched = false;
+      slug.addEventListener('input', function () { slugTouched = true; });
+
+      function slugify(s) {
+        return String(s || '')
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, '-')
+          .replace(/[^a-z0-9_-]/g, '')
+          .replace(/-+/g, '-')
+          .replace(/^-+|-+$/g, '')
+          .slice(0, 60);
+      }
+
+      title.addEventListener('input', function () {
+        if (!slugTouched) slug.value = slugify(title.value);
+      });
+    })();
+  </script>
 </body>
 </html>

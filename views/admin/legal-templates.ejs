@@ -6,6 +6,28 @@
   <title>Legal Templates – LumenNyx Studios</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+    .muted { opacity: 0.85; }
+    .toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin: 12px 0; }
+    .toolbar input[type="text"] { min-width: 260px; }
+    .pill {
+      display:inline-flex; align-items:center; gap:8px;
+      padding: 4px 10px; border-radius: 999px; font-size: 0.85rem;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(0,0,0,0.25);
+      white-space: nowrap;
+    }
+    .pill.ok { border-color: rgba(0,255,160,0.25); }
+    .pill.warn { border-color: rgba(255,200,60,0.30); }
+    .pill.bad { border-color: rgba(255,80,80,0.30); }
+    .actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+    .smallnote { margin-top: 10px; }
+    .table-wrap { overflow-x:auto; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,0.08); vertical-align: top; }
+    th { text-align:left; }
+  </style>
 </head>
 <body class="home">
   <header class="site-header">
@@ -30,46 +52,71 @@
     <section class="portal-section">
       <h2>Legal Template Library</h2>
       <p class="portal-note">
-        These templates are what models will sign inside the portal. Each signature generates a locked executed PDF
-        with timestamp + IP + document version.
+        These templates are what models will sign inside the portal. Each signature generates an executed PDF
+        with timestamp + IP + template version, stored in <span class="mono">executed_documents</span>.
       </p>
 
       <% if (message) { %><div class="alert success"><%= message %></div><% } %>
       <% if (error) { %><div class="alert error"><%= error %></div><% } %>
 
-      <div style="display:flex; gap:10px; flex-wrap:wrap; margin: 12px 0;">
+      <div class="toolbar">
         <a class="btn primary" href="/studio-panel/legal-templates/new">New Template</a>
         <a class="btn secondary" href="/studio-panel/legal-executed">View Signed Legal Docs</a>
+
+        <div style="flex:1;"></div>
+
+        <label style="display:flex; gap:8px; align-items:center;">
+          <span class="muted">Search:</span>
+          <input id="tplSearch" type="text" placeholder="title / slug / version…" />
+        </label>
       </div>
 
-      <div class="documents-list">
-        <table>
+      <div class="smallnote muted">
+        Note: The “model legal” pages are model-only routes. To preview the PDF output as staff, use a signed record in
+        <a href="/studio-panel/legal-executed">Signed Legal</a> → View PDF.
+      </div>
+
+      <div class="documents-list table-wrap" style="margin-top:12px;">
+        <table id="tplTable">
           <thead>
             <tr>
-              <th>Title</th>
-              <th>Slug</th>
-              <th>Version</th>
-              <th>Required</th>
-              <th>Active</th>
-              <th>Updated</th>
-              <th></th>
+              <th style="width: 28%;">Title</th>
+              <th style="width: 18%;">Slug</th>
+              <th style="width: 10%;">Version</th>
+              <th style="width: 10%;">Required</th>
+              <th style="width: 10%;">Active</th>
+              <th style="width: 14%;">Updated</th>
+              <th style="width: 10%;"></th>
             </tr>
           </thead>
           <tbody>
-            <% (templates || []).forEach((t) => { %>
-              <tr>
+            <% (templates || []).forEach((t) => { 
+              const isReq = Number(t.required) === 1;
+              const isActive = Number(t.active) === 1;
+            %>
+              <tr data-search="<%= (t.title || '') + ' ' + (t.slug || '') + ' ' + (t.version || '') %>">
                 <td><strong><%= t.title %></strong></td>
-                <td class="mono"><%= t.slug %></td>
-                <td><%= t.version %></td>
-                <td><%= Number(t.required) === 1 ? 'Yes' : 'No' %></td>
-                <td><%= Number(t.active) === 1 ? 'Yes' : 'No' %></td>
+                <td class="mono">
+                  <%= t.slug %>
+                  <button class="btn secondary" type="button" style="margin-left:8px; padding:0.2rem 0.6rem; font-size:0.72rem;"
+                    onclick="copyText('<%= t.slug %>')">Copy</button>
+                </td>
+                <td class="mono"><%= t.version %></td>
+                <td>
+                  <% if (isReq) { %><span class="pill warn">Required</span><% } else { %><span class="pill">Optional</span><% } %>
+                </td>
+                <td>
+                  <% if (isActive) { %><span class="pill ok">Active</span><% } else { %><span class="pill bad">Inactive</span><% } %>
+                </td>
                 <td class="muted"><%= t.updated_at || t.created_at || '' %></td>
                 <td style="white-space:nowrap;">
-                  <a class="btn secondary" href="/studio-panel/legal-templates/<%= t.id %>">Edit</a>
-                  <a class="btn secondary" href="/model/legal/<%= t.slug %>" target="_blank" rel="noopener">Preview</a>
+                  <div class="actions">
+                    <a class="btn secondary" href="/studio-panel/legal-templates/<%= t.id %>">Edit</a>
+                  </div>
                 </td>
               </tr>
             <% }) %>
+
             <% if (!templates || !templates.length) { %>
               <tr><td colspan="7" class="muted">No templates created yet.</td></tr>
             <% } %>
@@ -78,5 +125,35 @@
       </div>
     </section>
   </main>
+
+  <script>
+    (function(){
+      const input = document.getElementById('tplSearch');
+      const table = document.getElementById('tplTable');
+      if (!input || !table) return;
+
+      input.addEventListener('input', () => {
+        const q = (input.value || '').trim().toLowerCase();
+        const rows = table.querySelectorAll('tbody tr');
+        rows.forEach(r => {
+          const hay = (r.getAttribute('data-search') || '').toLowerCase();
+          r.style.display = (!q || hay.includes(q)) ? '' : 'none';
+        });
+      });
+    })();
+
+    function copyText(txt){
+      try {
+        navigator.clipboard.writeText(txt);
+      } catch(e) {
+        const ta = document.createElement('textarea');
+        ta.value = txt;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+    }
+  </script>
 </body>
 </html>

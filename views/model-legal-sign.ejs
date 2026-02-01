@@ -1,3 +1,4 @@
+<!-- FILE: views/model-legal-sign.ejs -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -50,20 +51,7 @@
     .doc p { margin: 10px 0; }
     .doc ul, .doc ol { margin: 10px 0 10px 22px; }
 
-    .sign {
-      margin-top: 14px;
-      display:grid;
-      grid-template-columns: 1fr;
-      gap: 12px;
-    }
-
-    .row {
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
+    .sign { margin-top: 14px; display:grid; grid-template-columns: 1fr; gap: 12px; }
 
     .warnbox {
       border: 1px solid rgba(255,200,60,0.25);
@@ -77,6 +65,13 @@
       border-radius: 14px;
       padding: 12px;
       background: rgba(255,80,80,0.06);
+    }
+
+    .infobox {
+      border: 1px solid rgba(180,200,255,0.20);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(180,200,255,0.06);
     }
 
     .checkbox {
@@ -157,7 +152,7 @@
         <div class="warnbox" style="margin-top: 14px;">
           <div class="pill ok">Already signed</div>
           <p class="muted" style="margin: 10px 0 0 0;">
-            You have already signed the latest version of this document. You may review it again below.
+            You have already signed the latest version of this document.
           </p>
         </div>
       <% } else if (needsResign) { %>
@@ -169,36 +164,45 @@
         </div>
       <% } %>
 
+      <div class="infobox" style="margin-top:14px;">
+        <div class="pill">Executed Copy</div>
+        <div class="muted" style="margin-top:8px;">
+          When you sign, the system generates an <strong>executed PDF</strong> and stores it in the studio record system.
+          Your signing timestamp, IP, and user agent are captured for audit.
+        </div>
+      </div>
+
       <div class="doc">
-        <!-- NOTE: body_html is stored as HTML in DB; render as raw HTML -->
         <%- template && template.body_html ? template.body_html : '<p class="muted">No document body found.</p>' %>
       </div>
 
       <div class="sign">
-        <div class="row">
-          <div>
-            <div class="muted">
-              Signing will generate an executed PDF saved to the studio record system.
-            </div>
-            <div class="muted" style="margin-top:6px;">
-              Your signature on file: <span class="mono"><%= signature ? (signature.typed_name || 'On file') : 'Missing' %></span>
-            </div>
-          </div>
+        <div class="muted">
+          Your signature on file: <span class="mono"><%= signature ? (signature.typed_name || signature.full_name || signature.legal_name || 'On file') : 'Missing' %></span>
         </div>
 
         <form action="/model/legal/<%= template.slug %>" method="POST">
-          <div class="checkbox">
-            <input id="agree" name="agree" type="checkbox" />
-            <label for="agree">
-              I have read this document and I agree to the terms.
-            </label>
-          </div>
+          <% if (!alreadySigned) { %>
+            <div class="checkbox">
+              <input id="agree" name="agree" type="checkbox" />
+              <label for="agree">
+                I have read this document and I agree to the terms.
+              </label>
+            </div>
+          <% } %>
 
           <div class="footer-actions" style="margin-top: 14px;">
-            <a class="btn secondary" href="/model/legal">Cancel</a>
-            <button class="btn primary" type="submit" <%= !signature ? 'disabled' : '' %>>
-              Sign & Generate PDF
-            </button>
+            <a class="btn secondary" href="/model/legal">Back</a>
+
+            <% if (alreadySigned) { %>
+              <button class="btn secondary" type="button" disabled>
+                Signed
+              </button>
+            <% } else { %>
+              <button class="btn primary" type="submit" <%= !signature ? 'disabled' : '' %>>
+                Sign & Generate PDF
+              </button>
+            <% } %>
           </div>
         </form>
       </div>

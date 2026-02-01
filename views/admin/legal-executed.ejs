@@ -6,6 +6,16 @@
   <title>Signed Legal Documents – LumenNyx Studios</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+    .muted { opacity: 0.85; }
+    .toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin: 12px 0; }
+    .toolbar input[type="text"] { min-width: 280px; }
+    .table-wrap { overflow-x:auto; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,0.08); vertical-align: top; }
+    th { text-align:left; }
+  </style>
 </head>
 <body class="home">
   <header class="site-header">
@@ -30,37 +40,64 @@
     <section class="portal-section">
       <h2>Signed Legal Documents</h2>
       <p class="portal-note">
-        These are executed PDFs generated from the template library (DocuSign-ish flow).
+        These are executed PDFs generated from the legal template library (audit trail).
+        Viewing PDFs requires staff/admin session.
       </p>
 
       <% if (message) { %><div class="alert success"><%= message %></div><% } %>
       <% if (error) { %><div class="alert error"><%= error %></div><% } %>
 
-      <div class="documents-list">
-        <table>
+      <div class="toolbar">
+        <a class="btn secondary" href="/studio-panel/legal-templates">Back to Templates</a>
+        <a class="btn secondary" href="/studio-panel/executed">Executed (All)</a>
+
+        <div style="flex:1;"></div>
+
+        <label style="display:flex; gap:8px; align-items:center;">
+          <span class="muted">Search:</span>
+          <input id="execSearch" type="text" placeholder="user / template / version / hash…" />
+        </label>
+      </div>
+
+      <div class="documents-list table-wrap">
+        <table id="execTable">
           <thead>
             <tr>
-              <th>Signed At</th>
-              <th>User</th>
-              <th>Template</th>
-              <th>Version</th>
-              <th>Hash</th>
-              <th></th>
+              <th style="width: 16%;">Signed At</th>
+              <th style="width: 18%;">User</th>
+              <th style="width: 28%;">Template</th>
+              <th style="width: 10%;">Version</th>
+              <th style="width: 18%;">Hash</th>
+              <th style="width: 10%;"></th>
             </tr>
           </thead>
           <tbody>
-            <% (rows || []).forEach((r) => { %>
-              <tr>
+            <% (rows || []).forEach((r) => { 
+              const userLabel = r.username || ('User #' + r.user_id);
+              const tplLabel = (r.template_title || r.doc_type || '—');
+              const tplSlug = (r.template_slug || r.doc_type || '');
+              const ver = (r.template_version || '');
+              const hashShort = (r.document_hash || '').slice(0, 16);
+              const hay = [r.signed_at, userLabel, r.user_id, tplLabel, tplSlug, ver, r.document_hash].join(' ');
+            %>
+              <tr data-search="<%= hay %>">
                 <td class="muted"><%= r.signed_at %></td>
-                <td><strong><%= r.username || ('User #' + r.user_id) %></strong></td>
-                <td><%= r.template_title || r.doc_type %></td>
-                <td class="mono"><%= r.template_version || '' %></td>
-                <td class="mono"><%= (r.document_hash || '').slice(0, 16) %>…</td>
+                <td>
+                  <strong><%= userLabel %></strong>
+                  <div class="muted">ID: <span class="mono"><%= r.user_id %></span></div>
+                </td>
+                <td>
+                  <div><strong><%= tplLabel %></strong></div>
+                  <div class="muted">Slug: <span class="mono"><%= tplSlug %></span></div>
+                </td>
+                <td class="mono"><%= ver %></td>
+                <td class="mono"><%= hashShort %><%= (r.document_hash && r.document_hash.length > 16) ? '…' : '' %></td>
                 <td style="white-space:nowrap;">
                   <a class="btn secondary" href="/studio-panel/executed/<%= r.id %>/pdf" target="_blank" rel="noopener">View PDF</a>
                 </td>
               </tr>
             <% }) %>
+
             <% if (!rows || !rows.length) { %>
               <tr><td colspan="6" class="muted">No signed legal documents yet.</td></tr>
             <% } %>
@@ -69,5 +106,22 @@
       </div>
     </section>
   </main>
+
+  <script>
+    (function(){
+      const input = document.getElementById('execSearch');
+      const table = document.getElementById('execTable');
+      if (!input || !table) return;
+
+      input.addEventListener('input', () => {
+        const q = (input.value || '').trim().toLowerCase();
+        const rows = table.querySelectorAll('tbody tr');
+        rows.forEach(r => {
+          const hay = (r.getAttribute('data-search') || '').toLowerCase();
+          r.style.display = (!q || hay.includes(q)) ? '' : 'none';
+        });
+      });
+    })();
+  </script>
 </body>
 </html>
