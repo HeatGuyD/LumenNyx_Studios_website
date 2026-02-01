@@ -852,6 +852,114 @@ module.exports = function docRoutes(ctx) {
   });
 
   // ============================================================
+  // ✅ NEW: STAFF PREVIEW BY SLUG (HTML + PDF)
+  // This avoids the /model/legal/:slug role gate for staff/admin.
+  // ============================================================
+  router.get('/studio-panel/legal-templates/slug/:slug/preview', ensureAdmin, async (req, res) => {
+    try {
+      const slug = String(req.params.slug || '').trim();
+      if (!slug) return res.status(400).render('error', { message: 'Invalid slug.' });
+
+      const template = await dbGet(
+        `SELECT id, slug, title, body_html, version, required, active, updated_at, created_at
+         FROM legal_templates
+         WHERE slug=? LIMIT 1`,
+        [slug]
+      );
+      if (!template) return res.status(404).render('error', { message: 'Template not found.' });
+
+      const payload = {
+        signer: { username: 'STAFF_PREVIEW', userId: req.session?.user?.id || null },
+        audit: { ip: getClientIp(req), ua: req.headers['user-agent'] || '' },
+      };
+
+      const signature = {
+        full_name: 'Staff Preview',
+        typed_name: 'Staff Preview',
+        signature_data_url: null,
+      };
+
+      const auditObj = {
+        ip: getClientIp(req),
+        ua: req.headers['user-agent'] || '',
+        signedAtIso: new Date().toISOString(),
+      };
+
+      return res.render('print/legal-template', {
+        template,
+        payload,
+        signature,
+        audit: auditObj,
+        studioEmails: ctx.STUDIO_EMAILS,
+      });
+    } catch (e) {
+      console.error('staff slug preview html error:', e);
+      return res.status(500).render('error', { message: 'Could not render preview.' });
+    }
+  });
+
+  router.get('/studio-panel/legal-templates/slug/:slug/preview.pdf', ensureAdmin, async (req, res) => {
+    try {
+      const slug = String(req.params.slug || '').trim();
+      if (!slug) return res.status(400).send('Invalid slug.');
+
+      if (!puppeteer) return res.status(500).send('PDF rendering is not available (puppeteer missing).');
+
+      const template = await dbGet(
+        `SELECT id, slug, title, body_html, version, required, active, updated_at, created_at
+         FROM legal_templates
+         WHERE slug=? LIMIT 1`,
+        [slug]
+      );
+      if (!template) return res.status(404).send('Template not found.');
+
+      const payload = {
+        signer: { username: 'STAFF_PREVIEW', userId: req.session?.user?.id || null },
+        audit: { ip: getClientIp(req), ua: req.headers['user-agent'] || '' },
+      };
+
+      const signature = {
+        full_name: 'Staff Preview',
+        typed_name: 'Staff Preview',
+        signature_data_url: null,
+      };
+
+      const auditObj = {
+        ip: getClientIp(req),
+        ua: req.headers['user-agent'] || '',
+        signedAtIso: new Date().toISOString(),
+      };
+
+      const html = await new Promise((resolve, reject) => {
+        res.render(
+          'print/legal-template',
+          {
+            template,
+            payload,
+            signature,
+            audit: auditObj,
+            studioEmails: ctx.STUDIO_EMAILS,
+          },
+          (err, out) => (err ? reject(err) : resolve(out))
+        );
+      });
+
+      const pdf = await renderPdfFromHtml({ html });
+
+      const safeSlug = String(template.slug || 'template').replace(/[^a-z0-9_-]/gi, '_');
+      const safeVer = String(template.version || 'v1').replace(/[^a-z0-9_.-]/gi, '_');
+      const fn = `preview_${safeSlug}_${safeVer}.pdf`;
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${fn}"`);
+      return res.send(pdf);
+    } catch (e) {
+      console.error('staff slug preview pdf error:', e);
+      return res.status(500).send('Could not generate preview PDF.');
+    }
+  });
+
+  // ============================================================
   // ADMIN: PRINT / DOWNLOAD endpoints
   // ============================================================
   async function getModelBundle(modelId) {
