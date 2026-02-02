@@ -7,13 +7,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <style>
-    /* ============================================================
-       LUMENNYX LEGAL PDF TEMPLATE (PUPPETEER/CHROMIUM FRIENDLY)
-       - Stable formatting (no locale rendering dependencies)
-       - Print-grade layout (Letter)
-       - Signature + audit + executed copy language
-       ============================================================ */
-
     @page { size: Letter; margin: 0.8in; }
 
     html, body {
@@ -89,8 +82,6 @@
       word-break: break-word;
     }
 
-    .lead { margin: 12px 0 14px 0; font-size: 12pt; }
-
     .notice {
       border: 1px solid #222;
       padding: 10px 12px;
@@ -101,7 +92,6 @@
 
     .hr { border-top: 1px solid #333; margin: 14px 0; }
 
-    /* Normalize body HTML */
     .body { margin-top: 10px; }
     .body h1, .body h2, .body h3 {
       font-family: "Times New Roman", Times, Georgia, serif;
@@ -128,7 +118,6 @@
     }
     .body th { background: #f2f2f2; font-weight: 700; }
 
-    /* Signature area */
     .sig-area {
       margin-top: 18px;
       page-break-inside: avoid;
@@ -172,7 +161,6 @@
     }
     .sig-field span { font-weight: 700; }
 
-    /* Audit table */
     .audit {
       margin-top: 14px;
       font-size: 10pt;
@@ -196,7 +184,6 @@
       background: #f2f2f2;
     }
 
-    /* Footer block (visible) */
     .footer {
       margin-top: 18px;
       border-top: 1px solid #333;
@@ -210,15 +197,12 @@
       word-break: break-word;
     }
 
-    /* Print control */
     p, li { orphans: 2; widows: 2; }
-    .page-break { page-break-before: always; }
   </style>
 </head>
 
 <body>
   <%
-    // Prefer stable ISO strings for PDFs. Avoid locale-dependent rendering inside Chromium.
     const signedIso =
       (audit && audit.signedAtIso) ? audit.signedAtIso :
       (payload && payload.consent && payload.consent.agreedAtIso) ? payload.consent.agreedAtIso :
@@ -238,6 +222,13 @@
 
     const ip = (audit && audit.ip) ? audit.ip : ((payload && payload.audit && payload.audit.ip) ? payload.audit.ip : '—');
     const ua = (audit && audit.ua) ? audit.ua : ((payload && payload.audit && payload.audit.ua) ? payload.audit.ua : '—');
+
+    const fields = (payload && payload.fields) ? payload.fields : {};
+    const fieldEntries = Object.entries(fields || {}).filter(([k, v]) => {
+      if (v === null || v === undefined) return false;
+      if (typeof v === 'string' && v.trim() === '') return false;
+      return true;
+    });
   %>
 
   <div class="page">
@@ -274,6 +265,28 @@
     <div class="body">
       <%- (template && template.body_html) ? template.body_html : '<p><em>No template body found.</em></p>' %>
     </div>
+
+    <% if (fieldEntries.length) { %>
+      <div class="hr"></div>
+      <div style="margin-top: 10px; page-break-inside: avoid;">
+        <div style="font-weight:700; text-transform:uppercase; letter-spacing:0.3px; margin-bottom:8px;">
+          Filled Information
+        </div>
+
+        <table style="width:100%; border-collapse:collapse; font-size:11.5pt;">
+          <% fieldEntries.forEach(([k, v]) => { %>
+            <tr>
+              <td style="border:1px solid #222; padding:6px 8px; width:32%; background:#f2f2f2; font-weight:700;">
+                <%= k %>
+              </td>
+              <td style="border:1px solid #222; padding:6px 8px; vertical-align:top; overflow-wrap:anywhere; word-break:break-word;">
+                <%= (typeof v === 'boolean') ? (v ? 'Yes' : 'No') : String(v) %>
+              </td>
+            </tr>
+          <% }) %>
+        </table>
+      </div>
+    <% } %>
 
     <div class="sig-area">
       <div class="hr"></div>

@@ -23,6 +23,10 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
       .replace(/'/g, '&#039;');
   }
 
+  function escapeRegExp(s) {
+    return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
   function getClientIp(req) {
     const xff = req.headers['x-forwarded-for'];
     if (xff && typeof xff === 'string') return xff.split(',')[0].trim();
@@ -311,6 +315,62 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
     }
   }
 
+  /**
+   * INLINE BODY FIELDS (OPTIONAL)
+   * If your template.body_html contains placeholders like {{performer_legal_name}},
+   * this function replaces them with real form inputs/selects/textarea/checkbox.
+   *
+   * If a template has ZERO placeholders, body renders unchanged.
+   */
+  function renderBodyWithInputs(bodyHtml, schema, values, prefill) {
+    let html = String(bodyHtml || '');
+    if (!html) return html;
+
+    const getVal = (k) => {
+      const v = values && values[k] !== undefined && values[k] !== null ? values[k] : null;
+      if (v !== null && v !== '') return v;
+      const p = prefill && prefill[k] !== undefined && prefill[k] !== null ? prefill[k] : null;
+      if (p !== null && p !== '') return p;
+      return '';
+    };
+
+    (schema || []).forEach((f) => {
+      const key = String(f && f.key ? f.key : '').trim();
+      if (!key) return;
+
+      const type = String(f.type || 'text').toLowerCase();
+      const required = f.required ? 'required' : '';
+      const max = f.max ? `maxlength="${Number(f.max)}"` : '';
+      const valRaw = getVal(key);
+      const valEsc = escapeHtml(valRaw);
+
+      let inputHtml = '';
+
+      if (type === 'textarea') {
+        inputHtml = `<textarea class="inline-fill" name="${escapeHtml(key)}" ${required} ${max}>${valEsc}</textarea>`;
+      } else if (type === 'select') {
+        const opts = (f.options || []).map((opt) => {
+          const o = String(opt);
+          const selected = String(valRaw) === o ? 'selected' : '';
+          return `<option value="${escapeHtml(o)}" ${selected}>${escapeHtml(o)}</option>`;
+        }).join('');
+        inputHtml = `<select class="inline-fill" name="${escapeHtml(key)}" ${required}><option value="">— Select —</option>${opts}</select>`;
+      } else if (type === 'checkbox') {
+        const checked = isTruthy(valRaw) ? 'checked' : '';
+        inputHtml = `<label class="inline-check"><input class="inline-fill" type="checkbox" name="${escapeHtml(key)}" value="1" ${checked} ${required}/> <span>${escapeHtml(f.label || key)}</span></label>`;
+      } else {
+        const itype = (type === 'email' || type === 'date') ? type : 'text';
+        inputHtml = `<input class="inline-fill" type="${itype}" name="${escapeHtml(key)}" value="${valEsc}" ${required} ${max} />`;
+      }
+
+      // Replace ALL occurrences of {{ key }}
+      const re = new RegExp(`\\{\\{\\s*${escapeRegExp(key)}\\s*\\}\\}`, 'g');
+      html = html.replace(re, inputHtml);
+    });
+
+    return html;
+  }
+
   // ------------------------------------------------------------
   // MIGRATION: add fields_json column (safe)
   // ------------------------------------------------------------
@@ -433,16 +493,25 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
         address_country: profile?.country || null,
       };
 
+      // NEW: inline placeholder -> input rendering
+      const bodyInlineHtml = renderBodyWithInputs(template.body_html, schema, {}, prefill);
+
       return res.render('model-legal-fill', {
         currentUser: req.session.user,
         template,
         schema,
         prefill,
         values: {},
+
+        // NEW
+        bodyInlineHtml,
+
         signature: signature ? { ...signature, signature_data_url: signatureDataUrl } : null,
+
         alreadySigned,
         needsResign,
         latestExecId: latestExec?.id || null,
+
         ...flash,
       });
     } catch (e) {
@@ -500,16 +569,25 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
           address_country: profile?.country || null,
         };
 
+        // NEW: keep inline body inputs with posted values
+        const bodyInlineHtml = renderBodyWithInputs(template.body_html, schema, values || {}, prefill);
+
         return res.render('model-legal-fill', {
           currentUser: req.session.user,
           template,
           schema,
           prefill,
           values: values || {},
+
+          // NEW
+          bodyInlineHtml,
+
           signature: signature ? { ...signature, signature_data_url: signatureOnFile } : null,
+
           alreadySigned: false,
           needsResign: false,
           latestExecId: null,
+
           error: errors.join(' '),
           message: null,
         });
