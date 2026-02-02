@@ -104,7 +104,16 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
     );
   }
 
-  async function insertExecutedLegalDoc({ userId, template, payload, signatureId, ip, ua, executedPdfFilename, documentHash }) {
+  async function insertExecutedLegalDoc({
+    userId,
+    template,
+    payload,
+    signatureId,
+    ip,
+    ua,
+    executedPdfFilename,
+    documentHash,
+  }) {
     await dbRun(
       `INSERT INTO executed_documents
        (user_id, doc_type, doc_kind, payload_json, signature_id, ip_address, user_agent, document_hash, executed_pdf_filename,
@@ -226,13 +235,23 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
     return [...identity, { key: 'ack_read', label: 'I have read and understand this document', type: 'checkbox', required: true }];
   }
 
+  /**
+   * CRITICAL FIX:
+   * - If fields_json parses to [] or {fields: []}, we MUST fallback to defaults,
+   *   otherwise the UI shows no inputs and the model can only "sign".
+   */
   function parseFieldsJson(fieldsJson, slug) {
-    if (!fieldsJson) return defaultFieldsForSlug(slug);
+    const fallback = defaultFieldsForSlug(slug);
+
+    if (!fieldsJson) return fallback;
+
     const v = safeJsonParse(fieldsJson, null);
-    if (!v) return defaultFieldsForSlug(slug);
-    if (Array.isArray(v)) return v;
-    if (Array.isArray(v.fields)) return v.fields;
-    return defaultFieldsForSlug(slug);
+    if (!v) return fallback;
+
+    if (Array.isArray(v)) return v.length ? v : fallback;
+    if (Array.isArray(v.fields)) return v.fields.length ? v.fields : fallback;
+
+    return fallback;
   }
 
   function validateFields(schema, body) {
@@ -420,13 +439,10 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
         schema,
         prefill,
         values: {},
-
         signature: signature ? { ...signature, signature_data_url: signatureDataUrl } : null,
-
         alreadySigned,
         needsResign,
         latestExecId: latestExec?.id || null,
-
         ...flash,
       });
     } catch (e) {
@@ -490,13 +506,10 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
           schema,
           prefill,
           values: values || {},
-
           signature: signature ? { ...signature, signature_data_url: signatureOnFile } : null,
-
           alreadySigned: false,
           needsResign: false,
           latestExecId: null,
-
           error: errors.join(' '),
           message: null,
         });

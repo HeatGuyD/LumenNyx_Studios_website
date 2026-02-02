@@ -12,28 +12,16 @@
     .muted { color:#9aa0b5; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:0.92rem; word-break: break-word; }
 
-    .card {
-      border: 1px solid rgba(255,255,255,0.10);
-      border-radius: 16px;
-      background: rgba(0,0,0,0.25);
-      padding: 16px;
-    }
-
+    .card { border: 1px solid rgba(255,255,255,0.10); border-radius: 16px; background: rgba(0,0,0,0.25); padding: 16px; }
     .topbar { display:flex; align-items:flex-start; justify-content:space-between; gap: 12px; flex-wrap: wrap; }
     .topbar h2 { margin: 0; }
     .actions { display:flex; gap:10px; flex-wrap: wrap; justify-content:flex-end; }
     .btn.small { padding: 0.35rem 0.85rem; font-size: 0.85rem; }
 
     .pill {
-      display:inline-flex;
-      align-items:center;
-      gap: 8px;
-      padding: 5px 10px;
-      border-radius: 999px;
-      font-size: 0.85rem;
-      border: 1px solid rgba(255,255,255,0.14);
-      background: rgba(0,0,0,0.25);
-      white-space: nowrap;
+      display:inline-flex; align-items:center; gap: 8px;
+      padding: 5px 10px; border-radius: 999px; font-size: 0.85rem;
+      border: 1px solid rgba(255,255,255,0.14); background: rgba(0,0,0,0.25); white-space: nowrap;
     }
     .pill.ok { border-color: rgba(0,255,160,0.25); }
     .pill.warn { border-color: rgba(255,200,60,0.30); }
@@ -49,17 +37,14 @@
       padding: 16px;
       line-height: 1.55;
       overflow-wrap: anywhere;
+      max-height: 70vh;
+      overflow: auto;
     }
     .doc h1, .doc h2, .doc h3 { margin-top: 12px; }
     .doc p { margin: 10px 0; }
     .doc ul, .doc ol { margin: 10px 0 10px 22px; }
 
-    .panel {
-      border: 1px solid rgba(255,255,255,0.10);
-      border-radius: 14px;
-      background: rgba(0,0,0,0.18);
-      padding: 16px;
-    }
+    .panel { border: 1px solid rgba(255,255,255,0.10); border-radius: 14px; background: rgba(0,0,0,0.18); padding: 16px; }
 
     .fieldset { margin-top: 10px; }
     .field { margin-top: 10px; }
@@ -81,13 +66,8 @@
     .help { margin-top: 6px; font-size: 0.88rem; color: rgba(255,255,255,0.70); }
     .req { color: rgba(255,200,60,0.95); font-weight: 700; margin-left: 6px; }
 
-    .signwrap { margin-top: 12px; }
-    .sigpad {
-      border: 1px solid rgba(255,255,255,0.14);
-      border-radius: 14px;
-      background: rgba(0,0,0,0.18);
-      padding: 10px;
-    }
+    .signwrap { margin-top: 14px; }
+    .sigpad { border: 1px solid rgba(255,255,255,0.14); border-radius: 14px; background: rgba(0,0,0,0.18); padding: 10px; }
     canvas {
       width: 100%;
       height: 170px;
@@ -103,21 +83,12 @@
     .checkbox { display:flex; gap: 10px; align-items:flex-start; margin-top: 10px; }
     .checkbox input { margin-top: 3px; }
 
-    .warnbox {
-      border: 1px solid rgba(255,200,60,0.25);
-      border-radius: 14px;
-      padding: 12px;
-      background: rgba(255,200,60,0.06);
-      margin-top: 12px;
-    }
+    .warnbox { border: 1px solid rgba(255,200,60,0.25); border-radius: 14px; padding: 12px; background: rgba(255,200,60,0.06); margin-top: 12px; }
+    .badbox { border: 1px solid rgba(255,80,80,0.25); border-radius: 14px; padding: 12px; background: rgba(255,80,80,0.06); margin-top: 12px; }
 
-    .badbox {
-      border: 1px solid rgba(255,80,80,0.25);
-      border-radius: 14px;
-      padding: 12px;
-      background: rgba(255,80,80,0.06);
-      margin-top: 12px;
-    }
+    .divider { height: 1px; background: rgba(255,255,255,0.10); margin: 14px 0; }
+
+    .tiny { font-size: 0.82rem; color: rgba(255,255,255,0.70); }
   </style>
 </head>
 
@@ -163,6 +134,9 @@
               · <span class="pill">Optional</span>
             <% } %>
           </div>
+          <div class="tiny" style="margin-top:6px;">
+            Debug: schemaCount=<%= (schema && schema.length) ? schema.length : 0 %>
+          </div>
         </div>
 
         <div class="actions">
@@ -193,6 +167,7 @@
         </div>
 
         <div class="panel">
+
           <% if (!signature) { %>
             <div class="badbox">
               <div class="pill bad">Signature setup required</div>
@@ -203,8 +178,10 @@
                 <a class="btn primary" href="/model/signature">Go to Signature Setup</a>
               </div>
             </div>
+            <div class="divider"></div>
           <% } %>
 
+          <!-- IMPORTANT: All fillable fields + signing controls are inside this form -->
           <form id="legalForm" action="/model/legal/<%= template.slug %>" method="POST">
             <input type="hidden" name="signature_data_url" id="signature_data_url" value="" />
 
@@ -214,119 +191,134 @@
                 Fill out the fields below. Required fields are marked.
               </div>
 
-              <% (schema || []).forEach(function(f){ 
+              <% function getVal(key) {
+                   const v = (values && values[key] !== undefined && values[key] !== null) ? values[key] : null;
+                   if (v !== null && v !== '') return v;
+                   const p = (prefill && prefill[key] !== undefined && prefill[key] !== null) ? prefill[key] : null;
+                   if (p !== null && p !== '') return p;
+                   return '';
+                 }
+              %>
+
+              <% (schema || []).forEach(function(f){
                    const key = (f && f.key) ? String(f.key) : '';
                    if (!key) return;
                    const label = f.label || key;
-                   const type = f.type || 'text';
+                   const type = (f.type || 'text').toString().toLowerCase();
                    const required = !!f.required;
-
-                   const baseVal =
-                     (values && values[key] != null && values[key] !== '') ? values[key] :
-                     (prefill && prefill[key] != null && prefill[key] !== '') ? prefill[key] :
-                     '';
-
-                   const isCheckbox = type === 'checkbox';
-                   const isTextarea = type === 'textarea';
-                   const isSelect = type === 'select';
-                   const isDate = type === 'date';
-                   const isEmail = type === 'email';
+                   const max = f.max ? Number(f.max) : null;
+                   const val = getVal(key);
               %>
+
                 <div class="field">
-                  <label for="<%= key %>">
-                    <%= label %>
-                    <% if (required) { %><span class="req">*</span><% } %>
-                  </label>
-
-                  <% if (isCheckbox) { %>
+                  <% if (type === 'checkbox') { %>
                     <div class="checkbox">
-                      <input id="<%= key %>" name="<%= key %>" type="checkbox"
-                        <%= (baseVal === true || baseVal === 'true' || baseVal === 'on' || baseVal === 1 || baseVal === '1') ? 'checked' : '' %>
+                      <input
+                        type="checkbox"
+                        id="f_<%= key %>"
+                        name="<%= key %>"
+                        value="1"
+                        <%= (val === true || val === 'true' || val === '1' || val === 1 || val === 'on') ? 'checked' : '' %>
                       />
-                      <label for="<%= key %>" class="muted" style="font-weight: 500; margin:0;">
-                        Yes
-                      </label>
+                      <div>
+                        <label for="f_<%= key %>" style="margin:0;">
+                          <%= label %>
+                          <% if (required) { %><span class="req">*</span><% } %>
+                        </label>
+                        <% if (f.help) { %>
+                          <div class="help"><%= f.help %></div>
+                        <% } %>
+                      </div>
                     </div>
+                  <% } else if (type === 'textarea') { %>
+                    <label for="f_<%= key %>">
+                      <%= label %>
+                      <% if (required) { %><span class="req">*</span><% } %>
+                    </label>
+                    <textarea
+                      id="f_<%= key %>"
+                      name="<%= key %>"
+                      <%= max ? `maxlength="${max}"` : '' %>
+                      placeholder="<%= f.placeholder ? String(f.placeholder) : '' %>"
+                    ><%= escapeHtml(val) %></textarea>
+                    <% if (f.help) { %><div class="help"><%= f.help %></div><% } %>
 
-                  <% } else if (isTextarea) { %>
-                    <textarea id="<%= key %>" name="<%= key %>" maxlength="<%= f.max ? f.max : 999999 %>"><%= baseVal %></textarea>
-
-                  <% } else if (isSelect) { %>
-                    <select id="<%= key %>" name="<%= key %>">
+                  <% } else if (type === 'select') { %>
+                    <label for="f_<%= key %>">
+                      <%= label %>
+                      <% if (required) { %><span class="req">*</span><% } %>
+                    </label>
+                    <select id="f_<%= key %>" name="<%= key %>">
                       <option value="">— Select —</option>
-                      <% (f.options || []).forEach(function(opt){ %>
-                        <option value="<%= opt %>" <%= String(baseVal) === String(opt) ? 'selected' : '' %>><%= opt %></option>
+                      <% (f.options || []).forEach(function(opt){
+                           const o = String(opt);
+                           const selected = String(val) === o;
+                      %>
+                        <option value="<%= escapeHtml(o) %>" <%= selected ? 'selected' : '' %>><%= o %></option>
                       <% }) %>
                     </select>
+                    <% if (f.help) { %><div class="help"><%= f.help %></div><% } %>
 
                   <% } else { %>
-                    <input
-                      id="<%= key %>"
-                      name="<%= key %>"
-                      type="<%= isDate ? 'date' : (isEmail ? 'email' : 'text') %>"
-                      value="<%= baseVal %>"
-                      <%= f.max ? ('maxlength="'+ f.max +'"') : '' %>
-                    />
-                  <% } %>
+                    <label for="f_<%= key %>">
+                      <%= label %>
+                      <% if (required) { %><span class="req">*</span><% } %>
+                    </label>
 
-                  <% if (f.help) { %>
-                    <div class="help"><%= f.help %></div>
+                    <input
+                      id="f_<%= key %>"
+                      name="<%= key %>"
+                      type="<%= (type === 'email' || type === 'date') ? type : 'text' %>"
+                      value="<%= escapeHtml(val) %>"
+                      <%= max ? `maxlength="${max}"` : '' %>
+                      placeholder="<%= f.placeholder ? String(f.placeholder) : '' %>"
+                    />
+                    <% if (f.help) { %><div class="help"><%= f.help %></div><% } %>
                   <% } %>
                 </div>
+
               <% }) %>
             </div>
 
-            <div class="fieldset" style="margin-top: 14px;">
-              <div style="font-weight: 700; margin-bottom: 6px;">Printed Name</div>
-              <div class="field" style="margin-top: 0;">
+            <div class="divider"></div>
+
+            <div class="fieldset">
+              <div style="font-weight: 700; margin-bottom: 6px;">Signature</div>
+              <div class="muted">Printed name + signature are required to execute this document.</div>
+
+              <div class="field">
+                <label for="typed_name">Printed Name <span class="req">*</span></label>
                 <input
                   id="typed_name"
                   name="typed_name"
                   type="text"
-                  maxlength="120"
+                  value="<%= (values && values.typed_name) ? escapeHtml(values.typed_name) : '' %>"
                   placeholder="Type your full legal name"
-                  value=""
-                  <%= !signature ? 'disabled' : '' %>
                 />
-                <div class="help">Required for execution record and PDF signature block.</div>
               </div>
-            </div>
 
-            <div class="fieldset signwrap">
-              <div style="font-weight: 700; margin-bottom: 6px;">Draw Signature</div>
-              <div class="sigpad">
+              <div class="signwrap sigpad">
+                <div class="muted" style="margin-bottom: 8px;">Draw your signature below:</div>
                 <canvas id="sigCanvas"></canvas>
                 <div class="row">
-                  <div class="muted" style="font-size:0.9rem;">
-                    Draw inside the box. If it’s blank, the form will be rejected.
-                  </div>
-                  <div style="display:flex; gap:8px; align-items:center;">
-                    <button id="clearSig" class="btn secondary small" type="button" <%= !signature ? 'disabled' : '' %>>Clear</button>
-                  </div>
+                  <button type="button" class="btn secondary small" id="sigClear">Clear</button>
+                  <span class="muted" id="sigStatus">No signature captured</span>
                 </div>
               </div>
-            </div>
 
-            <div class="checkbox">
-              <input id="agree_to_sign" name="agree_to_sign" type="checkbox" <%= !signature ? 'disabled' : '' %> />
-              <label for="agree_to_sign">
-                I have read this document, the information I provided is accurate, and I agree to sign electronically.
-              </label>
-            </div>
-
-            <div class="row" style="margin-top: 14px;">
-              <a class="btn secondary" href="/model/legal">Cancel</a>
-
-              <button class="btn primary" type="submit" <%= (!signature || alreadySigned) ? 'disabled' : '' %>>
-                Sign & Generate PDF
-              </button>
-            </div>
-
-            <% if (alreadySigned) { %>
-              <div class="muted" style="margin-top: 10px;">
-                This version is already signed. If you need a re-sign, the studio must bump the template version.
+              <div class="checkbox">
+                <input type="checkbox" id="agree_to_sign" name="agree_to_sign" value="1" />
+                <div>
+                  <label for="agree_to_sign" style="margin:0;">I agree to sign this document electronically <span class="req">*</span></label>
+                  <div class="help">By signing, you confirm the information entered above is accurate.</div>
+                </div>
               </div>
-            <% } %>
+
+              <div class="row" style="justify-content:flex-end;">
+                <button type="submit" class="btn primary">Sign & Generate PDF</button>
+              </div>
+            </div>
+
           </form>
         </div>
       </div>
@@ -334,66 +326,84 @@
   </main>
 
   <script>
-    (function() {
+    (function () {
       const canvas = document.getElementById('sigCanvas');
-      const hidden = document.getElementById('signature_data_url');
-      const clearBtn = document.getElementById('clearSig');
       const form = document.getElementById('legalForm');
+      const hidden = document.getElementById('signature_data_url');
+      const clearBtn = document.getElementById('sigClear');
+      const status = document.getElementById('sigStatus');
 
-      if (!canvas || !hidden || !form) return;
+      if (!canvas || !form || !hidden) return;
 
-      // Set real pixel size to match CSS size for crisp signature
+      // set real backing size to avoid blur + to capture correctly
       function resizeCanvas() {
         const rect = canvas.getBoundingClientRect();
-        const ratio = window.devicePixelRatio || 1;
-        canvas.width = Math.max(1, Math.floor(rect.width * ratio));
-        canvas.height = Math.max(1, Math.floor(rect.height * ratio));
-        const ctx = canvas.getContext('2d');
-        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-        ctx.lineWidth = 2.2;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+        const w = Math.floor(rect.width * ratio);
+        const h = Math.floor(rect.height * ratio);
+        if (canvas.width !== w || canvas.height !== h) {
+          const ctx = canvas.getContext('2d');
+          // preserve content best-effort by snapshotting first
+          const prev = canvas.toDataURL('image/png');
+          canvas.width = w;
+          canvas.height = h;
+          ctx.scale(ratio, ratio);
+          // try to redraw previous if it existed
+          const img = new Image();
+          img.onload = function () {
+            ctx.drawImage(img, 0, 0, rect.width, rect.height);
+          };
+          img.src = prev;
+        }
       }
 
       resizeCanvas();
       window.addEventListener('resize', resizeCanvas);
 
       const ctx = canvas.getContext('2d');
+      ctx.lineWidth = 2.2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
       let drawing = false;
       let hasInk = false;
-      let last = null;
+
+      function setStatus() {
+        status.textContent = hasInk ? 'Signature captured' : 'No signature captured';
+      }
 
       function posFromEvent(e) {
         const rect = canvas.getBoundingClientRect();
-        const touch = e.touches && e.touches[0] ? e.touches[0] : null;
-        const clientX = touch ? touch.clientX : e.clientX;
-        const clientY = touch ? touch.clientY : e.clientY;
+        const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+        const clientY = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
         return { x: clientX - rect.left, y: clientY - rect.top };
       }
 
       function start(e) {
         drawing = true;
-        last = posFromEvent(e);
-        hasInk = hasInk || false;
+        const p = posFromEvent(e);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
         e.preventDefault();
       }
 
       function move(e) {
         if (!drawing) return;
         const p = posFromEvent(e);
-        ctx.beginPath();
-        ctx.moveTo(last.x, last.y);
         ctx.lineTo(p.x, p.y);
-        ctx.strokeStyle = 'rgba(255,255,255,0.95)';
         ctx.stroke();
-        last = p;
         hasInk = true;
+        setStatus();
         e.preventDefault();
       }
 
       function end(e) {
+        if (!drawing) return;
         drawing = false;
-        last = null;
+        // update hidden field at end of stroke
+        try {
+          hidden.value = canvas.toDataURL('image/png');
+        } catch (_) {}
         e.preventDefault();
       }
 
@@ -405,22 +415,22 @@
       canvas.addEventListener('touchmove', move, { passive: false });
       window.addEventListener('touchend', end, { passive: false });
 
-      if (clearBtn) {
-        clearBtn.addEventListener('click', function() {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          hasInk = false;
-          hidden.value = '';
-        });
-      }
-
-      form.addEventListener('submit', function() {
-        // Save signature image into hidden field for backend
-        if (hasInk) {
-          hidden.value = canvas.toDataURL('image/png');
-        } else {
-          hidden.value = '';
-        }
+      clearBtn && clearBtn.addEventListener('click', function () {
+        const rect = canvas.getBoundingClientRect();
+        ctx.clearRect(0, 0, rect.width, rect.height);
+        hasInk = false;
+        hidden.value = '';
+        setStatus();
       });
+
+      form.addEventListener('submit', function () {
+        // ensure we capture something at submit time too
+        try {
+          hidden.value = canvas.toDataURL('image/png');
+        } catch (_) {}
+      });
+
+      setStatus();
     })();
   </script>
 </body>
