@@ -8,12 +8,15 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
   const audit = ctx.audit;
 
   const ensureLoggedIn = ctx.ensureLoggedIn;
-  const ensureAdmin = ctx.ensureAdmin;
+  const ensureAdmin = ctx.ensureAdmin; // kept for future use
   const renderPdfFromHtml = ctx.renderPdfFromHtml;
 
   const executedPdfDir = ctx.uploadDirs.docUploadsDir;
   const signatureUploadsDir = ctx.uploadDirs.signatureUploadsDir;
 
+  // -----------------------------
+  // Helpers
+  // -----------------------------
   function escapeHtml(s) {
     return String(s ?? '')
       .replace(/&/g, '&amp;')
@@ -76,6 +79,25 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
     return String(s || '').replace(/[^a-z0-9_.-]/gi, '_');
   }
 
+  function pickViewName() {
+    // Many installs still have model-legal-sign.ejs. Others have model-legal-fill.ejs.
+    // This picks whichever exists so we stop 500s from missing views.
+    try {
+      const viewsDir = ctx.viewsDir || path.join(process.cwd(), 'views');
+      const signPath = path.join(viewsDir, 'model-legal-sign.ejs');
+      if (fs.existsSync(signPath)) return 'model-legal-sign';
+
+      const fillPath = path.join(viewsDir, 'model-legal-fill.ejs');
+      if (fs.existsSync(fillPath)) return 'model-legal-fill';
+    } catch (_e) {}
+
+    // Default to fill (newer)
+    return 'model-legal-fill';
+  }
+
+  // -----------------------------
+  // DB access helpers
+  // -----------------------------
   async function getLatestSignature(userId) {
     return dbGet(
       `SELECT id, method, typed_name, typed_style, signature_png, initials_png, created_at
@@ -236,7 +258,10 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
     }
 
     // Generic “signature + identity” for everything else
-    return [...identity, { key: 'ack_read', label: 'I have read and understand this document', type: 'checkbox', required: true }];
+    return [
+      ...identity,
+      { key: 'ack_read', label: 'I have read and understand this document', type: 'checkbox', required: true },
+    ];
   }
 
   /**
@@ -262,13 +287,13 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
     const errors = [];
     const values = {};
 
-    for (const f of schema) {
+    for (const f of schema || []) {
       const key = String(f.key || '').trim();
       if (!key) continue;
 
-      const raw = body[key];
+      const raw = body ? body[key] : undefined;
 
-      if (f.type === 'checkbox') {
+      if (String(f.type || '').toLowerCase() === 'checkbox') {
         const checked = isTruthy(raw);
         values[key] = checked;
         if (f.required && !checked) errors.push(`${f.label || key} is required.`);
@@ -287,7 +312,7 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
         errors.push(`${f.label || key} is too long.`);
       }
 
-      if (v && f.type === 'email') {
+      if (v && String(f.type || '').toLowerCase() === 'email') {
         const s = String(v);
         if (!s.includes('@') || !s.includes('.')) errors.push(`${f.label || key} must be a valid email.`);
       }
@@ -317,8 +342,8 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
 
   /**
    * INLINE BODY FIELDS (OPTIONAL)
-   * If your template.body_html contains placeholders like {{performer_legal_name}},
-   * this function replaces them with real form inputs/selects/textarea/checkbox.
+   * If template.body_html contains placeholders like {{performer_legal_name}},
+   * replace them with real form inputs/selects/textarea/checkbox.
    *
    * If a template has ZERO placeholders, body renders unchanged.
    */
@@ -349,17 +374,22 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
       if (type === 'textarea') {
         inputHtml = `<textarea class="inline-fill" name="${escapeHtml(key)}" ${required} ${max}>${valEsc}</textarea>`;
       } else if (type === 'select') {
-        const opts = (f.options || []).map((opt) => {
-          const o = String(opt);
-          const selected = String(valRaw) === o ? 'selected' : '';
-          return `<option value="${escapeHtml(o)}" ${selected}>${escapeHtml(o)}</option>`;
-        }).join('');
+        const opts = (f.options || [])
+          .map((opt) => {
+            const o = String(opt);
+            const selected = String(valRaw) === o ? 'selected' : '';
+            return `<option value="${escapeHtml(o)}" ${selected}>${escapeHtml(o)}</option>`;
+          })
+          .join('');
         inputHtml = `<select class="inline-fill" name="${escapeHtml(key)}" ${required}><option value="">— Select —</option>${opts}</select>`;
       } else if (type === 'checkbox') {
         const checked = isTruthy(valRaw) ? 'checked' : '';
-        inputHtml = `<label class="inline-check"><input class="inline-fill" type="checkbox" name="${escapeHtml(key)}" value="1" ${checked} ${required}/> <span>${escapeHtml(f.label || key)}</span></label>`;
+        // Checkbox inline includes its label text, but still posts the key name
+        inputHtml = `<label class="inline-check"><input class="inline-fill" type="checkbox" name="${escapeHtml(
+          key
+        )}" value="1" ${checked} ${required}/> <span>${escapeHtml(f.label || key)}</span></label>`;
       } else {
-        const itype = (type === 'email' || type === 'date') ? type : 'text';
+        const itype = type === 'email' || type === 'date' ? type : 'text';
         inputHtml = `<input class="inline-fill" type="${itype}" name="${escapeHtml(key)}" value="${valEsc}" ${required} ${max} />`;
       }
 
@@ -489,21 +519,28 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
         performer_dob: profile?.date_of_birth || null,
         performer_email: profile?.email || user?.email || null,
         performer_phone: profile?.phone || null,
+
+        // Address tries multiple column names (since schemas vary)
+        address_line1: profile?.address_line1 || profile?.address || null,
+        address_line2: profile?.address_line2 || null,
+        address_city: profile?.city || null,
         address_state: profile?.state || null,
+        address_zip: profile?.zip || null,
         address_country: profile?.country || null,
       };
 
-      // NEW: inline placeholder -> input rendering
+      // Inline placeholder -> input rendering (optional)
       const bodyInlineHtml = renderBodyWithInputs(template.body_html, schema, {}, prefill);
 
-      return res.render('model-legal-fill', {
+      // View choice: sign vs fill
+      const viewName = pickViewName();
+
+      return res.render(viewName, {
         currentUser: req.session.user,
         template,
         schema,
         prefill,
         values: {},
-
-        // NEW
         bodyInlineHtml,
 
         signature: signature ? { ...signature, signature_data_url: signatureDataUrl } : null,
@@ -565,21 +602,24 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
           performer_dob: profile?.date_of_birth || null,
           performer_email: profile?.email || user?.email || null,
           performer_phone: profile?.phone || null,
+
+          address_line1: profile?.address_line1 || profile?.address || null,
+          address_line2: profile?.address_line2 || null,
+          address_city: profile?.city || null,
           address_state: profile?.state || null,
+          address_zip: profile?.zip || null,
           address_country: profile?.country || null,
         };
 
-        // NEW: keep inline body inputs with posted values
         const bodyInlineHtml = renderBodyWithInputs(template.body_html, schema, values || {}, prefill);
+        const viewName = pickViewName();
 
-        return res.render('model-legal-fill', {
+        return res.render(viewName, {
           currentUser: req.session.user,
           template,
           schema,
           prefill,
           values: values || {},
-
-          // NEW
           bodyInlineHtml,
 
           signature: signature ? { ...signature, signature_data_url: signatureOnFile } : null,
@@ -635,7 +675,7 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
         signatureId: null,
         ip,
         ua,
-        executedPdfFilename: null, // updated later if pdf renders
+        executedPdfFilename: null,
         documentHash,
       });
 
@@ -649,11 +689,7 @@ module.exports = function attachLegalDocRoutes(router, ctx) {
               template,
               payload,
               signature: signatureForPdf,
-              audit: {
-                ip,
-                ua,
-                signedAtIso: new Date().toISOString(),
-              },
+              audit: { ip, ua, signedAtIso: new Date().toISOString() },
               studioEmails: ctx.STUDIO_EMAILS,
             },
             (err, out) => (err ? reject(err) : resolve(out))
