@@ -12,77 +12,83 @@
     .muted { color:#9aa0b5; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:0.92rem; word-break: break-word; }
 
-    .card {
-      border: 1px solid rgba(255,255,255,0.10);
-      border-radius: 16px;
-      background: rgba(0,0,0,0.25);
-      padding: 16px;
-    }
-
-    .topbar { display:flex; align-items:flex-start; justify-content:space-between; gap: 12px; }
+    .card { border: 1px solid rgba(255,255,255,0.10); border-radius: 16px; background: rgba(0,0,0,0.25); padding: 16px; }
+    .topbar { display:flex; align-items:flex-start; justify-content:space-between; gap: 12px; flex-wrap: wrap; }
     .topbar h2 { margin: 0; }
     .actions { display:flex; gap:10px; flex-wrap: wrap; justify-content:flex-end; }
     .btn.small { padding: 0.35rem 0.85rem; font-size: 0.85rem; }
 
     .pill {
-      display:inline-flex;
-      align-items:center;
-      gap: 8px;
-      padding: 5px 10px;
-      border-radius: 999px;
-      font-size: 0.85rem;
-      border: 1px solid rgba(255,255,255,0.14);
-      background: rgba(0,0,0,0.25);
-      white-space: nowrap;
+      display:inline-flex; align-items:center; gap: 8px;
+      padding: 5px 10px; border-radius: 999px; font-size: 0.85rem;
+      border: 1px solid rgba(255,255,255,0.14); background: rgba(0,0,0,0.25); white-space: nowrap;
     }
     .pill.ok { border-color: rgba(0,255,160,0.25); }
     .pill.warn { border-color: rgba(255,200,60,0.30); }
     .pill.bad { border-color: rgba(255,80,80,0.30); }
 
+    .grid { display:grid; grid-template-columns: 1fr; gap: 16px; margin-top: 14px; }
+    @media (min-width: 980px) { .grid { grid-template-columns: 1.15fr 0.85fr; } }
+
     .doc {
-      margin-top: 14px;
       border: 1px solid rgba(255,255,255,0.10);
       border-radius: 14px;
       background: rgba(0,0,0,0.18);
       padding: 16px;
       line-height: 1.55;
+      overflow-wrap: anywhere;
+      max-height: 70vh;
+      overflow: auto;
     }
     .doc h1, .doc h2, .doc h3 { margin-top: 12px; }
     .doc p { margin: 10px 0; }
     .doc ul, .doc ol { margin: 10px 0 10px 22px; }
 
-    .sign { margin-top: 14px; display:grid; grid-template-columns: 1fr; gap: 12px; }
+    .panel { border: 1px solid rgba(255,255,255,0.10); border-radius: 14px; background: rgba(0,0,0,0.18); padding: 16px; }
 
-    .warnbox {
-      border: 1px solid rgba(255,200,60,0.25);
-      border-radius: 14px;
-      padding: 12px;
-      background: rgba(255,200,60,0.06);
+    .fieldset { margin-top: 10px; }
+    .field { margin-top: 10px; }
+    .field label { display:block; font-weight: 600; margin-bottom: 6px; }
+    .field input[type="text"],
+    .field input[type="email"],
+    .field input[type="date"],
+    .field select,
+    .field textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(0,0,0,0.25);
+      color: rgba(255,255,255,0.92);
+      outline: none;
+    }
+    .field textarea { min-height: 90px; resize: vertical; }
+    .help { margin-top: 6px; font-size: 0.88rem; color: rgba(255,255,255,0.70); }
+    .req { color: rgba(255,200,60,0.95); font-weight: 700; margin-left: 6px; }
+
+    .signwrap { margin-top: 14px; }
+    .sigpad { border: 1px solid rgba(255,255,255,0.14); border-radius: 14px; background: rgba(0,0,0,0.18); padding: 10px; }
+    canvas {
+      width: 100%;
+      height: 170px;
+      display:block;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.02);
+      border: 1px dashed rgba(255,255,255,0.14);
+      touch-action: none;
+      cursor: crosshair;
     }
 
-    .badbox {
-      border: 1px solid rgba(255,80,80,0.25);
-      border-radius: 14px;
-      padding: 12px;
-      background: rgba(255,80,80,0.06);
-    }
-
-    .infobox {
-      border: 1px solid rgba(180,200,255,0.20);
-      border-radius: 14px;
-      padding: 12px;
-      background: rgba(180,200,255,0.06);
-    }
-
-    .checkbox {
-      display:flex;
-      gap: 10px;
-      align-items:flex-start;
-      margin-top: 8px;
-    }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; margin-top: 10px; }
+    .checkbox { display:flex; gap: 10px; align-items:flex-start; margin-top: 10px; }
     .checkbox input { margin-top: 3px; }
 
-    .footer-actions { display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+    .warnbox { border: 1px solid rgba(255,200,60,0.25); border-radius: 14px; padding: 12px; background: rgba(255,200,60,0.06); margin-top: 12px; }
+    .badbox { border: 1px solid rgba(255,80,80,0.25); border-radius: 14px; padding: 12px; background: rgba(255,80,80,0.06); margin-top: 12px; }
+
+    .divider { height: 1px; background: rgba(255,255,255,0.10); margin: 14px 0; }
+
+    .tiny { font-size: 0.82rem; color: rgba(255,255,255,0.70); }
   </style>
 </head>
 
@@ -128,6 +134,9 @@
               · <span class="pill">Optional</span>
             <% } %>
           </div>
+          <div class="tiny" style="margin-top:6px;">
+            Debug: schemaCount=<%= (schema && schema.length) ? schema.length : 0 %>
+          </div>
         </div>
 
         <div class="actions">
@@ -136,78 +145,310 @@
         </div>
       </div>
 
-      <% if (!signature) { %>
-        <div class="badbox" style="margin-top: 14px;">
-          <div class="pill bad">Signature required</div>
-          <p class="muted" style="margin: 10px 0 0 0;">
-            You must complete <strong>Signature Setup</strong> before signing legal documents.
-          </p>
-          <div style="margin-top: 10px;">
-            <a class="btn primary" href="/model/signature">Go to Signature Setup</a>
-          </div>
-        </div>
-      <% } %>
-
       <% if (alreadySigned) { %>
-        <div class="warnbox" style="margin-top: 14px;">
+        <div class="warnbox">
           <div class="pill ok">Already signed</div>
-          <p class="muted" style="margin: 10px 0 0 0;">
-            You have already signed the latest version of this document.
-          </p>
+          <div class="muted" style="margin-top: 8px;">
+            You have already signed the latest version of this document. You may still review it.
+          </div>
         </div>
       <% } else if (needsResign) { %>
-        <div class="warnbox" style="margin-top: 14px;">
+        <div class="warnbox">
           <div class="pill warn">Re-sign required</div>
-          <p class="muted" style="margin: 10px 0 0 0;">
+          <div class="muted" style="margin-top: 8px;">
             This document was updated since your last signature. Please review and sign the updated version.
-          </p>
+          </div>
         </div>
       <% } %>
 
-      <div class="infobox" style="margin-top:14px;">
-        <div class="pill">Executed Copy</div>
-        <div class="muted" style="margin-top:8px;">
-          When you sign, the system generates an <strong>executed PDF</strong> and stores it in the studio record system.
-          Your signing timestamp, IP, and user agent are captured for audit.
-        </div>
-      </div>
-
-      <div class="doc">
-        <%- template && template.body_html ? template.body_html : '<p class="muted">No document body found.</p>' %>
-      </div>
-
-      <div class="sign">
-        <div class="muted">
-          Your signature on file: <span class="mono"><%= signature ? (signature.typed_name || signature.full_name || signature.legal_name || 'On file') : 'Missing' %></span>
+      <div class="grid">
+        <div class="doc">
+          <%- template && template.body_html ? template.body_html : '<p class="muted">No document body found.</p>' %>
         </div>
 
-        <form action="/model/legal/<%= template.slug %>" method="POST">
-          <% if (!alreadySigned) { %>
-            <div class="checkbox">
-              <input id="agree" name="agree" type="checkbox" />
-              <label for="agree">
-                I have read this document and I agree to the terms.
-              </label>
+        <div class="panel">
+
+          <% if (!signature) { %>
+            <div class="badbox">
+              <div class="pill bad">Signature setup required</div>
+              <div class="muted" style="margin-top: 8px;">
+                You must complete <strong>Signature Setup</strong> before signing legal documents.
+              </div>
+              <div style="margin-top: 10px;">
+                <a class="btn primary" href="/model/signature">Go to Signature Setup</a>
+              </div>
             </div>
+            <div class="divider"></div>
           <% } %>
 
-          <div class="footer-actions" style="margin-top: 14px;">
-            <a class="btn secondary" href="/model/legal">Back</a>
+          <form id="legalForm" action="/model/legal/<%= template.slug %>" method="POST">
+            <input type="hidden" name="signature_data_url" id="signature_data_url" value="" />
 
-            <% if (alreadySigned) { %>
-              <button class="btn secondary" type="button" disabled>
-                Signed
-              </button>
-            <% } else { %>
-              <button class="btn primary" type="submit" <%= !signature ? 'disabled' : '' %>>
-                Sign & Generate PDF
-              </button>
-            <% } %>
-          </div>
-        </form>
+            <div class="fieldset">
+              <div style="font-weight: 700; margin-bottom: 6px;">Required Information</div>
+              <div class="muted" style="line-height:1.45;">
+                Fill out the fields below. Required fields are marked.
+              </div>
+
+              <% function escapeHtml(s) {
+                   return String(s ?? '')
+                     .replace(/&/g, '&amp;')
+                     .replace(/</g, '&lt;')
+                     .replace(/>/g, '&gt;')
+                     .replace(/"/g, '&quot;')
+                     .replace(/'/g, '&#039;');
+                 }
+
+                 function getVal(key) {
+                   const v = (values && values[key] !== undefined && values[key] !== null) ? values[key] : null;
+                   if (v !== null && v !== '') return v;
+                   const p = (prefill && prefill[key] !== undefined && prefill[key] !== null) ? prefill[key] : null;
+                   if (p !== null && p !== '') return p;
+                   return '';
+                 }
+              %>
+
+              <% (schema || []).forEach(function(f){
+                   const key = (f && f.key) ? String(f.key) : '';
+                   if (!key) return;
+                   const label = f.label || key;
+                   const type = (f.type || 'text').toString().toLowerCase();
+                   const required = !!f.required;
+                   const max = f.max ? Number(f.max) : null;
+                   const val = getVal(key);
+              %>
+
+                <div class="field">
+                  <% if (type === 'checkbox') { %>
+                    <div class="checkbox">
+                      <input
+                        type="checkbox"
+                        id="f_<%= key %>"
+                        name="<%= key %>"
+                        value="1"
+                        <%= (val === true || val === 'true' || val === '1' || val === 1 || val === 'on') ? 'checked' : '' %>
+                      />
+                      <div>
+                        <label for="f_<%= key %>" style="margin:0;">
+                          <%= label %>
+                          <% if (required) { %><span class="req">*</span><% } %>
+                        </label>
+                        <% if (f.help) { %>
+                          <div class="help"><%= f.help %></div>
+                        <% } %>
+                      </div>
+                    </div>
+
+                  <% } else if (type === 'textarea') { %>
+                    <label for="f_<%= key %>">
+                      <%= label %>
+                      <% if (required) { %><span class="req">*</span><% } %>
+                    </label>
+                    <textarea
+                      id="f_<%= key %>"
+                      name="<%= key %>"
+                      <%= max ? `maxlength="${max}"` : '' %>
+                      placeholder="<%= f.placeholder ? String(f.placeholder) : '' %>"
+                    ><%= escapeHtml(val) %></textarea>
+                    <% if (f.help) { %><div class="help"><%= f.help %></div><% } %>
+
+                  <% } else if (type === 'select') { %>
+                    <label for="f_<%= key %>">
+                      <%= label %>
+                      <% if (required) { %><span class="req">*</span><% } %>
+                    </label>
+                    <select id="f_<%= key %>" name="<%= key %>">
+                      <option value="">— Select —</option>
+                      <% (f.options || []).forEach(function(opt){
+                           const o = String(opt);
+                           const selected = String(val) === o;
+                      %>
+                        <option value="<%= escapeHtml(o) %>" <%= selected ? 'selected' : '' %>><%= o %></option>
+                      <% }) %>
+                    </select>
+                    <% if (f.help) { %><div class="help"><%= f.help %></div><% } %>
+
+                  <% } else { %>
+                    <label for="f_<%= key %>">
+                      <%= label %>
+                      <% if (required) { %><span class="req">*</span><% } %>
+                    </label>
+
+                    <input
+                      id="f_<%= key %>"
+                      name="<%= key %>"
+                      type="<%= (type === 'email' || type === 'date') ? type : 'text' %>"
+                      value="<%= escapeHtml(val) %>"
+                      <%= max ? `maxlength="${max}"` : '' %>
+                      placeholder="<%= f.placeholder ? String(f.placeholder) : '' %>"
+                    />
+                    <% if (f.help) { %><div class="help"><%= f.help %></div><% } %>
+                  <% } %>
+                </div>
+
+              <% }) %>
+
+              <% if (!schema || !schema.length) { %>
+                <div class="badbox" style="margin-top:12px;">
+                  <div class="pill bad">No schema fields loaded</div>
+                  <div class="muted" style="margin-top:8px;">
+                    This usually means the route did not pass <span class="mono">schema</span>, or fields_json is empty and defaults are not being used.
+                  </div>
+                </div>
+              <% } %>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="fieldset">
+              <div style="font-weight: 700; margin-bottom: 6px;">Signature</div>
+              <div class="muted">Printed name + signature are required to execute this document.</div>
+
+              <div class="field">
+                <label for="typed_name">Printed Name <span class="req">*</span></label>
+                <input
+                  id="typed_name"
+                  name="typed_name"
+                  type="text"
+                  value="<%= (values && values.typed_name) ? escapeHtml(values.typed_name) : '' %>"
+                  placeholder="Type your full legal name"
+                />
+              </div>
+
+              <div class="signwrap sigpad">
+                <div class="muted" style="margin-bottom: 8px;">Draw your signature below:</div>
+                <canvas id="sigCanvas"></canvas>
+                <div class="row">
+                  <button type="button" class="btn secondary small" id="sigClear">Clear</button>
+                  <span class="muted" id="sigStatus">No signature captured</span>
+                </div>
+              </div>
+
+              <div class="checkbox">
+                <input type="checkbox" id="agree_to_sign" name="agree_to_sign" value="1" />
+                <div>
+                  <label for="agree_to_sign" style="margin:0;">I agree to sign this document electronically <span class="req">*</span></label>
+                  <div class="help">By signing, you confirm the information entered above is accurate.</div>
+                </div>
+              </div>
+
+              <div class="row" style="justify-content:flex-end;">
+                <button type="submit" class="btn primary">Sign & Generate PDF</button>
+              </div>
+
+              <div class="muted" style="margin-top:10px;">
+                Signing will generate an executed PDF saved to the studio record system.
+              </div>
+              <div class="muted" style="margin-top:8px;">
+                Your signature on file: <span class="mono"><%= signature ? (signature.typed_name || 'On file') : 'Missing' %></span>
+              </div>
+            </div>
+
+          </form>
+        </div>
       </div>
-
     </section>
   </main>
+
+  <script>
+    (function () {
+      const canvas = document.getElementById('sigCanvas');
+      const form = document.getElementById('legalForm');
+      const hidden = document.getElementById('signature_data_url');
+      const clearBtn = document.getElementById('sigClear');
+      const status = document.getElementById('sigStatus');
+
+      if (!canvas || !form || !hidden) return;
+
+      function resizeCanvas() {
+        const rect = canvas.getBoundingClientRect();
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+        const w = Math.floor(rect.width * ratio);
+        const h = Math.floor(rect.height * ratio);
+        if (canvas.width !== w || canvas.height !== h) {
+          const ctx = canvas.getContext('2d');
+          const prev = canvas.toDataURL('image/png');
+          canvas.width = w;
+          canvas.height = h;
+          ctx.scale(ratio, ratio);
+          const img = new Image();
+          img.onload = function () { ctx.drawImage(img, 0, 0, rect.width, rect.height); };
+          img.src = prev;
+        }
+      }
+
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+
+      const ctx = canvas.getContext('2d');
+      ctx.lineWidth = 2.2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      let drawing = false;
+      let hasInk = false;
+
+      function setStatus() {
+        if (!status) return;
+        status.textContent = hasInk ? 'Signature captured' : 'No signature captured';
+      }
+
+      function posFromEvent(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+        const clientY = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
+        return { x: clientX - rect.left, y: clientY - rect.top };
+      }
+
+      function start(e) {
+        drawing = true;
+        const p = posFromEvent(e);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        e.preventDefault();
+      }
+
+      function move(e) {
+        if (!drawing) return;
+        const p = posFromEvent(e);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        hasInk = true;
+        setStatus();
+        e.preventDefault();
+      }
+
+      function end(e) {
+        if (!drawing) return;
+        drawing = false;
+        try { hidden.value = canvas.toDataURL('image/png'); } catch (_) {}
+        e.preventDefault();
+      }
+
+      canvas.addEventListener('mousedown', start);
+      canvas.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', end);
+
+      canvas.addEventListener('touchstart', start, { passive: false });
+      canvas.addEventListener('touchmove', move, { passive: false });
+      window.addEventListener('touchend', end, { passive: false });
+
+      if (clearBtn) {
+        clearBtn.addEventListener('click', function () {
+          const rect = canvas.getBoundingClientRect();
+          ctx.clearRect(0, 0, rect.width, rect.height);
+          hasInk = false;
+          hidden.value = '';
+          setStatus();
+        });
+      }
+
+      form.addEventListener('submit', function () {
+        try { hidden.value = canvas.toDataURL('image/png'); } catch (_) {}
+      });
+
+      setStatus();
+    })();
+  </script>
 </body>
 </html>
